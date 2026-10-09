@@ -37,7 +37,7 @@ export const MainPageHeader: React.FC<MainPageHeaderProps> = ({
   const isProcessing = currentJob?.status === 'processing';
 
   const handleRunAnalysis = () => {
-    triggerMockAnalysis(activeProject?.name || 'Rapid Drone Survey', 'GeoResQ-Vision-v2.4');
+    triggerMockAnalysis(activeProject?.name || 'Rapid Drone Survey', 'genresq_unet_best.pth (PyTorch Custom UNet)');
   };
 
   const handleTabClick = (tabId: string, path?: string) => {

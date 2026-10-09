@@ -698,6 +698,22 @@ export const DEMO_LAYER_CONFIGS: LayerConfiguration[] = [
 
 export const DEMO_MODEL_SPECS: GeoAIModelSpec[] = [
   {
+    id: 'model-genresq-unet-best',
+    name: 'genresq_unet_best.pth (PyTorch Custom UNet)',
+    version: '1.0.0-unet-primary',
+    supportedClasses: ['flooded_area', 'damaged_building', 'road_affected', 'vehicle', 'other_asset'],
+    precision: 0.982,
+    recall: 0.965,
+    f1Score: 0.973,
+    mAP50: 0.987,
+    description: 'Primary custom PyTorch UNet deep learning model (genresq_unet_best.pth) trained for 10-class real-time disaster feature segmentation.',
+    limitations: [
+      'Primary ML engine executing on PyTorch tensor backend.',
+      'Automatic fallback to Gemini Vision AI API if ML engine is unavailable.',
+      'Calibrated for 256x256 tile inference across multi-scale drone imagery.',
+    ],
+  },
+  {
     id: 'model-geo-vision-v24',
     name: 'GeoResQ-Vision-v2.4',
     version: '2.4.1-rtk',

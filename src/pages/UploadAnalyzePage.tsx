@@ -26,7 +26,7 @@ export const UploadAnalyzePage: React.FC = () => {
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
 
-  const [selectedModel, setSelectedModel] = useState<string>('GeoResQ-Vision-v2.4');
+  const [selectedModel, setSelectedModel] = useState<string>('genresq_unet_best.pth (PyTorch Custom UNet)');
   const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.75);
   const [extractClasses, setExtractClasses] = useState({
     flooded_area: true,
