@@ -1,5 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  MapContainer,
+  TileLayer,
+  Polygon,
+  Polyline,
+  Marker,
+  Popup,
+  Circle,
+  useMap,
+} from 'react-leaflet';
+import L from 'leaflet';
+import {
   IconPlayerPlay,
   IconPlayerPause,
   IconRefresh,
@@ -22,6 +33,11 @@ import {
   IconTarget,
   IconDownload,
   IconSettings,
+  IconCrosshair,
+  IconNavigation,
+  IconAmbulance,
+  IconEye,
+  IconReportAnalytics,
 } from '@tabler/icons-react';
 
 interface SimulationStep {
@@ -211,21 +227,114 @@ def generate_statutory_pdf(report_data):
   },
 ];
 
+// Sample Spatial Data Coordinates (Nashik Godavari Basin)
+const MAP_CENTER: [number, number] = [19.9975, 73.7898];
+
+const FLOOD_POLYGON: [number, number][] = [
+  [19.9950, 73.7820],
+  [19.9995, 73.7860],
+  [20.0030, 73.7920],
+  [20.0010, 73.7980],
+  [19.9970, 73.7990],
+  [19.9935, 73.7940],
+  [19.9925, 73.7870],
+];
+
+const DRONE_FLIGHT_PATH: [number, number][] = [
+  [19.9910, 73.7800],
+  [19.9945, 73.7845],
+  [19.9980, 73.7895],
+  [20.0015, 73.7940],
+  [20.0040, 73.7985],
+];
+
+const DISPATCH_ROUTE: [number, number][] = [
+  [19.9850, 73.7750], // NDRF Station
+  [19.9880, 73.7810],
+  [19.9930, 73.7870],
+  [19.9995, 73.7925], // Critical Submerged Causeway
+];
+
+// Helper to create Leaflet DivIcons
+const createDroneIcon = () =>
+  L.divIcon({
+    className: 'custom-drone-sim-icon',
+    html: `
+      <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 44px; height: 44px; border-radius: 9999px; border: 2px dashed #38BDF8; animation: spin 4s linear infinite;"></div>
+        <div style="position: absolute; width: 28px; height: 28px; border-radius: 9999px; background: rgba(2, 132, 199, 0.4); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+        <div style="background: #0284C7; color: white; padding: 6px; border-radius: 9999px; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 20;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 12m-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0" />
+            <path d="M4.5 4.5l3 3" /><path d="M19.5 4.5l-3 3" /><path d="M4.5 19.5l3 -3" /><path d="M19.5 19.5l-3 -3" />
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+  });
+
+const createVertexIcon = (label: string) =>
+  L.divIcon({
+    className: 'custom-vertex-icon',
+    html: `
+      <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+        <div style="width: 12px; height: 12px; border-radius: 9999px; background: #00F0FF; border: 2px solid #FFFFFF; box-shadow: 0 0 10px #00F0FF;"></div>
+        <div style="position: absolute; top: -20px; background: #0F172A; color: #38BDF8; font-family: monospace; font-size: 9px; font-weight: bold; padding: 1px 5px; border-radius: 4px; border: 1px solid #0284C7; white-space: nowrap;">
+          ${label}
+        </div>
+      </div>
+    `,
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+  });
+
+const createRescueIcon = () =>
+  L.divIcon({
+    className: 'custom-rescue-icon',
+    html: `
+      <div style="position: relative; display: flex; align-items: center; justify-content: center;">
+        <div style="position: absolute; width: 36px; height: 36px; border-radius: 9999px; background: rgba(16, 185, 129, 0.4); animation: ping 1.2s infinite;"></div>
+        <div style="background: #10B981; color: white; padding: 6px; border-radius: 9999px; border: 2px solid #FFFFFF; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 25;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+            <path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+            <path d="M5 17h-2v-11a1 1 0 0 1 1 -1h9v12m-4 0h6m4 0h2v-6h-8m0 -5h5l3 5" />
+          </svg>
+        </div>
+      </div>
+    `,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+
+// Map Controller to reset view
+const MapViewController: React.FC<{ center: [number, number] }> = ({ center }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, 14, { animate: true });
+  }, [center, map]);
+  return null;
+};
+
 export const DemoSimulatePage: React.FC = () => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<1 | 2 | 5>(1);
   const [scanPulse, setScanPulse] = useState(0);
+  const [dronePosIndex, setDronePosIndex] = useState(0);
+  const [rescuePosIndex, setRescuePosIndex] = useState(0);
   const [terminalLogs, setTerminalLogs] = useState<string[]>([]);
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   const step = SIMULATION_STEPS[currentStepIndex];
 
-  // Playback timer loop
+  // Auto-step timer loop
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
     if (isPlaying) {
-      const stepDuration = 5000 / playbackSpeed;
+      const stepDuration = 5500 / playbackSpeed;
       interval = setInterval(() => {
         setCurrentStepIndex((prev) => {
           if (prev >= SIMULATION_STEPS.length - 1) {
@@ -241,12 +350,15 @@ export const DemoSimulatePage: React.FC = () => {
     };
   }, [isPlaying, playbackSpeed]);
 
-  // Pulse animation for simulated scan
+  // Continuous visual movement timers (Drone & Rescue vehicle)
   useEffect(() => {
-    const pulseInterval = setInterval(() => {
+    const droneTimer = setInterval(() => {
+      setDronePosIndex((p) => (p + 1) % DRONE_FLIGHT_PATH.length);
+      setRescuePosIndex((p) => (p + 1) % DISPATCH_ROUTE.length);
       setScanPulse((p) => (p + 1) % 100);
-    }, 50);
-    return () => clearInterval(pulseInterval);
+    }, 1800);
+
+    return () => clearInterval(droneTimer);
   }, []);
 
   // Update logs when step changes
@@ -276,11 +388,16 @@ export const DemoSimulatePage: React.FC = () => {
   const handleReset = () => {
     setIsPlaying(false);
     setCurrentStepIndex(0);
+    setDronePosIndex(0);
+    setRescuePosIndex(0);
     setTerminalLogs([
       '[SYSTEM INIT] GeoResQ Interactive Simulation Engine initialized.',
       '[PIPELINE READY] Select Play or click step pills to simulate real-time AI execution.',
     ]);
   };
+
+  const droneCurrentPos = DRONE_FLIGHT_PATH[dronePosIndex];
+  const rescueCurrentPos = DISPATCH_ROUTE[rescuePosIndex];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F8FAFC] overflow-y-auto">
@@ -297,11 +414,11 @@ export const DemoSimulatePage: React.FC = () => {
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono uppercase font-bold bg-[#0284C7]/30 text-[#38BDF8] border border-[#0284C7]/50 flex items-center space-x-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] animate-ping" />
-                <span>Live Interactive Simulation</span>
+                <span>Live Interactive Visual Simulation</span>
               </span>
             </div>
             <p className="text-xs text-[#94A3B8] font-mono mt-0.5">
-              Step-by-step interactive demonstration of GeoResQ GeoAI pipeline from satellite ingest to statutory report dispatch.
+              Step-by-step spatial visual simulation of GeoResQ GeoAI pipeline from satellite ingest to statutory report dispatch.
             </p>
           </div>
         </div>
@@ -377,7 +494,6 @@ export const DemoSimulatePage: React.FC = () => {
         <div className="bg-white border border-[#CBD5E1] rounded-2xl p-4 shadow-xs">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
             {SIMULATION_STEPS.map((s, idx) => {
-              const StepIcon = s.icon;
               const isActive = idx === currentStepIndex;
               const isCompleted = idx < currentStepIndex;
 
@@ -421,14 +537,14 @@ export const DemoSimulatePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Workspace Grid: Left Visual Canvas Simulator + Right Detail Inspector */}
+        {/* Workspace Grid: Left Interactive Visual Map Simulator + Right Detail Inspector */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Visual Simulator Canvas (7 cols) */}
           <div className="lg:col-span-7 flex flex-col space-y-4">
-            {/* Visual Screen Card */}
-            <div className="bg-[#0B1528] border border-[#1E293B] rounded-2xl overflow-hidden shadow-lg flex flex-col h-[460px] relative">
+            {/* Visual Viewport Container */}
+            <div className="bg-[#0B1528] border border-[#1E293B] rounded-2xl overflow-hidden shadow-lg flex flex-col h-[520px] relative">
               {/* Screen Bar */}
-              <div className="bg-[#0F172A] border-b border-[#1E293B] px-4 py-2.5 flex items-center justify-between font-mono text-xs text-[#94A3B8]">
+              <div className="bg-[#0F172A] border-b border-[#1E293B] px-4 py-2.5 flex items-center justify-between font-mono text-xs text-[#94A3B8] z-20">
                 <div className="flex items-center space-x-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#EF4444]" />
                   <span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]" />
@@ -438,155 +554,224 @@ export const DemoSimulatePage: React.FC = () => {
                 <div className="flex items-center space-x-3 text-[11px]">
                   <span>FPS: <strong className="text-[#38BDF8]">58.4</strong></span>
                   <span>LATENCY: <strong className="text-[#10B981]">18ms</strong></span>
-                  <span>ZOOM: <strong className="text-white">16x</strong></span>
+                  <span>MODE: <strong className="text-[#F59E0B] uppercase">{step.badge.split(': ')[1]}</strong></span>
                 </div>
               </div>
 
-              {/* Simulation Stage Canvas Preview */}
-              <div className="flex-1 relative bg-[#060D1A] overflow-hidden flex items-center justify-center p-4 select-none">
-                {/* Simulated Radar Grid Lines */}
-                <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#38BDF8_1px,transparent_1px)] [background-size:24px_24px]" />
+              {/* Interactive Visual Map Render Engine */}
+              <div className="flex-1 relative overflow-hidden">
+                <MapContainer
+                  center={MAP_CENTER}
+                  zoom={14}
+                  className="h-full w-full z-0"
+                  zoomControl={false}
+                  attributionControl={false}
+                >
+                  <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                  <MapViewController center={MAP_CENTER} />
 
-                {/* Laser Sweep Line */}
+                  {/* STAGE 1 VISUAL: MULTISPECTRAL INGESTION */}
+                  {step.id === 1 && (
+                    <>
+                      {/* Flight Path Polyline */}
+                      <Polyline
+                        positions={DRONE_FLIGHT_PATH}
+                        pathOptions={{ color: '#0284C7', weight: 3, dashArray: '6, 8' }}
+                      />
+                      {/* Animated Drone Marker */}
+                      <Marker position={droneCurrentPos} icon={createDroneIcon()}>
+                        <Popup>
+                          <div className="p-1 font-mono text-xs">
+                            <strong className="text-[#0284C7] block">Matrice 300 RTK Sweeping</strong>
+                            <span>GSD: 0.045m/px | ALT: 125m</span>
+                          </div>
+                        </Popup>
+                      </Marker>
+                      {/* Ingestion Coverage Polygon */}
+                      <Polygon
+                        positions={FLOOD_POLYGON}
+                        pathOptions={{ color: '#0284C7', fillColor: '#0284C7', fillOpacity: 0.15, weight: 2 }}
+                      />
+                    </>
+                  )}
+
+                  {/* STAGE 2 VISUAL: AI INFERENCE & SEMANTIC SEGMENTATION */}
+                  {step.id === 2 && (
+                    <>
+                      {/* SegFormer Flood Mask */}
+                      <Polygon
+                        positions={FLOOD_POLYGON}
+                        pathOptions={{ color: '#00F0FF', fillColor: '#0284C7', fillOpacity: 0.45, weight: 3 }}
+                      />
+
+                      {/* YOLOv8 Box 1: Submerged Vehicle */}
+                      <Marker position={[19.9995, 73.7925]} icon={L.divIcon({
+                        className: 'custom-yolo-box-1',
+                        html: `
+                          <div style="border: 2px solid #EF4444; background: rgba(239, 68, 68, 0.25); padding: 4px; border-radius: 6px; box-shadow: 0 0 12px #EF4444; width: 140px;">
+                            <div style="background: #EF4444; color: white; font-family: monospace; font-size: 9px; font-weight: bold; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between;">
+                              <span>SUBMERGED VEHICLE</span>
+                              <span>98.4%</span>
+                            </div>
+                          </div>
+                        `,
+                        iconSize: [140, 50],
+                        iconAnchor: [70, 25],
+                      })} />
+
+                      {/* YOLOv8 Box 2: Stranded Civilians */}
+                      <Marker position={[19.9950, 73.7870]} icon={L.divIcon({
+                        className: 'custom-yolo-box-2',
+                        html: `
+                          <div style="border: 2px solid #F59E0B; background: rgba(245, 158, 11, 0.25); padding: 4px; border-radius: 6px; box-shadow: 0 0 12px #F59E0B; width: 150px;">
+                            <div style="background: #F59E0B; color: white; font-family: monospace; font-size: 9px; font-weight: bold; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between;">
+                              <span>STRANDED POPULATION (4)</span>
+                              <span>94.1%</span>
+                            </div>
+                          </div>
+                        `,
+                        iconSize: [150, 50],
+                        iconAnchor: [75, 25],
+                      })} />
+
+                      {/* YOLOv8 Box 3: Submerged Causeway Bridge */}
+                      <Marker position={[20.0010, 73.7950]} icon={L.divIcon({
+                        className: 'custom-yolo-box-3',
+                        html: `
+                          <div style="border: 2px solid #00F0FF; background: rgba(0, 240, 255, 0.25); padding: 4px; border-radius: 6px; box-shadow: 0 0 12px #00F0FF; width: 160px;">
+                            <div style="background: #0284C7; color: white; font-family: monospace; font-size: 9px; font-weight: bold; padding: 2px 4px; border-radius: 3px; display: flex; justify-content: space-between;">
+                              <span>CAUSEWAY BRIDGE</span>
+                              <span>96.8%</span>
+                            </div>
+                          </div>
+                        `,
+                        iconSize: [160, 50],
+                        iconAnchor: [80, 25],
+                      })} />
+                    </>
+                  )}
+
+                  {/* STAGE 3 VISUAL: GEOSPATIAL VECTORIZATION */}
+                  {step.id === 3 && (
+                    <>
+                      {/* Crisp Glowing Vector Wireframe */}
+                      <Polygon
+                        positions={FLOOD_POLYGON}
+                        pathOptions={{ color: '#00F0FF', fillColor: '#00F0FF', fillOpacity: 0.2, weight: 3, dashArray: '4, 4' }}
+                      />
+
+                      {/* Polygon Vertex Nodes */}
+                      {FLOOD_POLYGON.map((v, i) => (
+                        <Marker key={i} position={v} icon={createVertexIcon(`V${i + 1}: ${v[0].toFixed(3)}, ${v[1].toFixed(3)}`)} />
+                      ))}
+                    </>
+                  )}
+
+                  {/* STAGE 4 VISUAL: DYNAMIC SEVERITY & RISK ENGINE */}
+                  {step.id === 4 && (
+                    <>
+                      {/* Critical Impact Circles */}
+                      <Circle center={[20.0010, 73.7950]} radius={200} pathOptions={{ color: '#EF4444', fillColor: '#EF4444', fillOpacity: 0.35, weight: 2 }} />
+                      <Circle center={[20.0010, 73.7950]} radius={450} pathOptions={{ color: '#F59E0B', fillColor: '#F59E0B', fillOpacity: 0.15, weight: 1.5, dashArray: '6,6' }} />
+                      <Circle center={[19.9950, 73.7870]} radius={180} pathOptions={{ color: '#EF4444', fillColor: '#EF4444', fillOpacity: 0.3, weight: 2 }} />
+
+                      {/* Threat Proximity Line */}
+                      <Polyline positions={[[20.0010, 73.7950], [19.9950, 73.7870]]} pathOptions={{ color: '#EF4444', weight: 2, dashArray: '4,6' }} />
+                    </>
+                  )}
+
+                  {/* STAGE 5 VISUAL: EMERGENCY RESPONSE DISPATCH */}
+                  {step.id === 5 && (
+                    <>
+                      {/* Neon Dispatch Route Polyline */}
+                      <Polyline positions={DISPATCH_ROUTE} pathOptions={{ color: '#10B981', weight: 5, dashArray: '8, 8' }} />
+
+                      {/* Rescue Vehicle Marker */}
+                      <Marker position={rescueCurrentPos} icon={createRescueIcon()}>
+                        <Popup>
+                          <div className="p-1 font-mono text-xs">
+                            <strong className="text-[#10B981] block">NDRF Rescue Unit 04</strong>
+                            <span>En Route: Nashik Flood Sector 2</span>
+                          </div>
+                        </Popup>
+                      </Marker>
+
+                      {/* Target Disaster Hub Marker */}
+                      <Marker position={[19.9995, 73.7925]} icon={L.divIcon({
+                        className: 'custom-target-icon',
+                        html: `
+                          <div style="background: #EF4444; color: white; padding: 4px 8px; border-radius: 6px; font-family: monospace; font-size: 10px; font-weight: bold; border: 2px solid white; box-shadow: 0 0 15px #EF4444;">
+                            DISASTER SECTOR ALPHA
+                          </div>
+                        `,
+                        iconSize: [140, 24],
+                        iconAnchor: [70, 12],
+                      })} />
+                    </>
+                  )}
+                </MapContainer>
+
+                {/* Laser Scanning Overlay Animation */}
                 <div
-                  className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-[#38BDF8] to-transparent shadow-[0_0_15px_#38BDF8] transition-all duration-75"
+                  className="absolute top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-[#38BDF8] to-transparent shadow-[0_0_15px_#38BDF8] pointer-events-none transition-all duration-75 z-10"
                   style={{ left: `${scanPulse}%` }}
                 />
 
-                {/* Stage 1: Ingestion View */}
+                {/* Dynamic Floating Visual Overlays per Stage */}
                 {step.id === 1 && (
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center p-6 space-y-4 animate-in fade-in">
-                    <div className="w-20 h-20 rounded-full bg-[#0284C7]/20 border-2 border-[#38BDF8] flex items-center justify-center animate-pulse">
-                      <IconDrone className="w-10 h-10 text-[#38BDF8]" />
+                  <div className="absolute top-4 left-4 z-10 bg-[#0F172A]/90 backdrop-blur border border-[#1E293B] p-3 rounded-xl font-mono text-xs text-white shadow-lg space-y-1">
+                    <div className="flex items-center space-x-2 text-[#38BDF8] font-bold">
+                      <IconDrone className="w-4 h-4 animate-spin-slow" />
+                      <span>LIVE DRONE SWEEP ACTIVE</span>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Ingesting Orthomosaic GeoTIFF</h3>
-                      <p className="text-xs text-[#94A3B8] font-mono mt-1">
-                        Godavari Basin (Nashik) • Coordinates: 19.9975° N, 73.7898° E
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 w-full max-w-md font-mono text-xs">
-                      <div className="bg-[#0F172A] p-2.5 rounded-lg border border-[#1E293B] text-left">
-                        <span className="text-[#64748B] block text-[10px]">RASTER CRS</span>
-                        <span className="text-[#38BDF8] font-bold">EPSG:4326 (WGS84)</span>
-                      </div>
-                      <div className="bg-[#0F172A] p-2.5 rounded-lg border border-[#1E293B] text-left">
-                        <span className="text-[#64748B] block text-[10px]">BAND CONFIG</span>
-                        <span className="text-[#10B981] font-bold">RGB + NIR (4 Bands)</span>
-                      </div>
-                    </div>
+                    <div className="text-[11px] text-[#94A3B8]">Sensor: Matrice 300 RTK • Altitude: 125m AGL</div>
+                    <div className="text-[10px] text-[#10B981]">Spectral Reflectance Index: NDWI Active</div>
                   </div>
                 )}
 
-                {/* Stage 2: AI Inference View */}
                 {step.id === 2 && (
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center p-4 space-y-3 animate-in fade-in">
-                    {/* Simulated Bounding Boxes */}
-                    <div className="relative w-full max-w-md h-64 bg-[#0F172A] rounded-xl border border-[#38BDF8]/40 overflow-hidden flex items-center justify-center">
-                      <div className="absolute top-4 left-4 border-2 border-[#EF4444] bg-[#EF4444]/20 p-2 rounded text-left text-[10px] font-mono text-white animate-pulse">
-                        <strong className="block text-[#EF4444]">Submerged Vehicle</strong>
-                        <span>Conf: 94.2%</span>
-                      </div>
-                      <div className="absolute bottom-6 right-8 border-2 border-[#F59E0B] bg-[#F59E0B]/20 p-2 rounded text-left text-[10px] font-mono text-white">
-                        <strong className="block text-[#F59E0B]">Stranded Group (4 People)</strong>
-                        <span>Conf: 89.1%</span>
-                      </div>
-                      <div className="absolute top-12 right-12 border-2 border-[#0284C7] bg-[#0284C7]/20 p-2 rounded text-left text-[10px] font-mono text-white">
-                        <strong className="block text-[#38BDF8]">Submerged Causeway Bridge</strong>
-                        <span>Conf: 96.8%</span>
-                      </div>
-                      <div className="text-xs font-mono text-[#94A3B8]">
-                        SegFormer-B5 Water Mask Layer (Active)
-                      </div>
+                  <div className="absolute top-4 left-4 z-10 bg-[#0F172A]/90 backdrop-blur border border-[#1E293B] p-3 rounded-xl font-mono text-xs text-white shadow-lg space-y-1">
+                    <div className="flex items-center space-x-2 text-[#F59E0B] font-bold">
+                      <IconCpu className="w-4 h-4" />
+                      <span>DUAL AI MODEL INFERENCE</span>
                     </div>
+                    <div className="text-[11px] text-[#94A3B8]">YOLOv8x + SegFormer MiT-B5 TensorRT</div>
+                    <div className="text-[10px] text-[#38BDF8]">Flooded Polygon: 5.27 sq km • 14 Assets</div>
                   </div>
                 )}
 
-                {/* Stage 3: Vectorization View */}
                 {step.id === 3 && (
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center p-6 space-y-4 animate-in fade-in">
-                    <div className="w-20 h-20 rounded-full bg-[#10B981]/20 border-2 border-[#10B981] flex items-center justify-center">
-                      <IconLayersIntersect className="w-10 h-10 text-[#10B981]" />
+                  <div className="absolute top-4 left-4 z-10 bg-[#0F172A]/90 backdrop-blur border border-[#1E293B] p-3 rounded-xl font-mono text-xs text-white shadow-lg space-y-1">
+                    <div className="flex items-center space-x-2 text-[#00F0FF] font-bold">
+                      <IconLayersIntersect className="w-4 h-4" />
+                      <span>EPSG:4326 GEOJSON MESH</span>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">GeoJSON Vector Polygon Generator</h3>
-                      <p className="text-xs text-[#94A3B8] font-mono mt-1">
-                        Converted 14 contours to EPSG:4326 GeoJSON polygons (Total: 5.27 sq km)
-                      </p>
-                    </div>
-                    <div className="bg-[#0F172A] border border-[#1E293B] p-3 rounded-xl w-full max-w-md text-left font-mono text-[11px] text-[#38BDF8]">
-                      <code>{`{"type": "FeatureCollection", "features": [{"type": "Feature", "geometry": {"type": "Polygon", "coordinates": [[[73.789, 19.997], ...]]}}]}`}</code>
-                    </div>
+                    <div className="text-[11px] text-[#94A3B8]">Raster &rarr; Vector Topology Extraction</div>
+                    <div className="text-[10px] text-[#10B981]">Simplified Vertices: 1,420 Nodes</div>
                   </div>
                 )}
 
-                {/* Stage 4: Risk Scoring View */}
                 {step.id === 4 && (
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center p-4 space-y-3 animate-in fade-in">
-                    <div className="w-full max-w-md bg-[#0F172A] border border-[#1E293B] rounded-xl p-4 space-y-3 text-left font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-white font-bold">DISASTER RISK ASSESSMENT MATRIX</span>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-[#EF4444]/20 text-[#EF4444] border border-[#EF4444] font-bold">
-                          CRITICAL STATUS
-                        </span>
-                      </div>
-
-                      <div className="space-y-2 text-xs">
-                        <div>
-                          <div className="flex justify-between text-[11px] text-[#94A3B8] mb-1">
-                            <span>Infrastructure Proximity Score</span>
-                            <span className="text-[#EF4444] font-bold">92/100</span>
-                          </div>
-                          <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
-                            <div className="bg-[#EF4444] h-full w-[92%]" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between text-[11px] text-[#94A3B8] mb-1">
-                            <span>Flooded Area Submersion Index</span>
-                            <span className="text-[#F59E0B] font-bold">78/100</span>
-                          </div>
-                          <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
-                            <div className="bg-[#F59E0B] h-full w-[78%]" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="flex justify-between text-[11px] text-[#94A3B8] mb-1">
-                            <span>Population Exposure Level</span>
-                            <span className="text-[#38BDF8] font-bold">64/100</span>
-                          </div>
-                          <div className="w-full bg-[#1E293B] h-2 rounded-full overflow-hidden">
-                            <div className="bg-[#38BDF8] h-full w-[64%]" />
-                          </div>
-                        </div>
-                      </div>
+                  <div className="absolute top-4 left-4 z-10 bg-[#0F172A]/90 backdrop-blur border border-[#EF4444] p-3 rounded-xl font-mono text-xs text-white shadow-lg space-y-1">
+                    <div className="flex items-center space-x-2 text-[#EF4444] font-bold">
+                      <IconFlame className="w-4 h-4 animate-bounce" />
+                      <span>SEVERITY RISK ASSESSMENT MATRIX</span>
                     </div>
+                    <div className="text-[11px] text-[#94A3B8]">Proximity Weight: 35% • Infra Exposure: HIGH</div>
+                    <div className="text-[10px] text-[#EF4444] font-bold">CALCULATED SCORE: 89/100 (CRITICAL)</div>
                   </div>
                 )}
 
-                {/* Stage 5: Response Dispatch View */}
                 {step.id === 5 && (
-                  <div className="relative z-10 w-full h-full flex flex-col items-center justify-center text-center p-6 space-y-4 animate-in fade-in">
-                    <div className="w-20 h-20 rounded-full bg-[#0284C7]/20 border-2 border-[#0284C7] flex items-center justify-center animate-bounce">
-                      <IconFileText className="w-10 h-10 text-[#38BDF8]" />
+                  <div className="absolute top-4 left-4 z-10 bg-[#0F172A]/90 backdrop-blur border border-[#10B981] p-3.5 rounded-xl font-mono text-xs text-white shadow-lg space-y-1 max-w-xs">
+                    <div className="flex items-center space-x-2 text-[#10B981] font-bold">
+                      <IconFileText className="w-4 h-4" />
+                      <span>STATUTORY PDF REPORT DISPATCHED</span>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Statutory Report Compiled & Dispatched</h3>
-                      <p className="text-xs text-[#94A3B8] font-mono mt-1">
-                        Report ID: GEORESQ-2026-NSK-001 • Sent to NDRF Command Center
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <span className="px-3 py-1.5 rounded-lg bg-[#10B981]/20 text-[#10B981] border border-[#10B981] font-mono text-xs font-bold flex items-center space-x-1.5">
-                        <IconCheck className="w-4 h-4" />
-                        <span>PDF Report Generated (1.2s)</span>
-                      </span>
-                      <span className="px-3 py-1.5 rounded-lg bg-[#0284C7]/20 text-[#38BDF8] border border-[#0284C7] font-mono text-xs font-bold flex items-center space-x-1.5">
-                        <IconActivity className="w-4 h-4" />
-                        <span>Webhook 200 OK</span>
-                      </span>
+                    <div className="text-[11px] text-[#94A3B8]">Document: GeoResQ_Damage_Report.pdf</div>
+                    <div className="text-[10px] text-[#10B981] font-bold flex items-center space-x-1 mt-1">
+                      <IconCheck className="w-3.5 h-3.5" />
+                      <span>NDRF / SDMA Dispatch Webhook (200 OK)</span>
                     </div>
                   </div>
                 )}
@@ -594,7 +779,7 @@ export const DemoSimulatePage: React.FC = () => {
             </div>
 
             {/* Simulated System Terminal Output */}
-            <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl overflow-hidden shadow-md flex flex-col h-48">
+            <div className="bg-[#0F172A] border border-[#1E293B] rounded-2xl overflow-hidden shadow-md flex flex-col h-44">
               <div className="bg-[#1E293B] px-4 py-2 flex items-center justify-between border-b border-[#334155] font-mono text-xs text-[#94A3B8]">
                 <div className="flex items-center space-x-2">
                   <IconTerminal2 className="w-4 h-4 text-[#38BDF8]" />
