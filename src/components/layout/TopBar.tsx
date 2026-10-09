@@ -31,22 +31,22 @@ export const TopBar: React.FC = () => {
   const [isLocationOpen, setIsLocationOpen] = useState(false);
 
   return (
-    <header className="h-14 bg-white border-b border-[#E2E8F0] px-4 flex items-center justify-between sticky top-0 z-20 shadow-xs print:hidden">
+    <header className="h-14 bg-white border-b border-[#E2E8F0] px-4 flex items-center justify-between sticky top-0 z-20 shadow-xs print:hidden min-w-0">
       {/* Breadcrumbs & Search */}
-      <div className="flex items-center space-x-4 flex-1 max-w-2xl">
+      <div className="flex items-center space-x-3 flex-1 min-w-0 max-w-xl">
         {/* Breadcrumb Trail */}
-        <div className="hidden lg:flex items-center space-x-1.5 text-xs font-mono text-[#64748B] shrink-0">
-          <span className="font-semibold text-[#0F172A]">GeoResQ</span>
+        <div className="hidden xl:flex items-center space-x-1.5 text-xs font-mono text-[#64748B] shrink-0">
+          <span className="font-bold text-[#0F172A]">GeoResQ</span>
           <IconChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
           <span>Projects</span>
           <IconChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
-          <span className="font-semibold text-[#0284C7] max-w-[140px] truncate" title={activeProject?.name}>
+          <span className="font-semibold text-[#0284C7] max-w-[110px] truncate" title={activeProject?.name}>
             {activeProject?.name || 'Godavari Basin'}
           </span>
         </div>
 
         {/* Search Input with Ctrl K Shortcut */}
-        <div className="relative w-full max-w-sm">
+        <div className="relative w-full max-w-xs sm:max-w-sm min-w-0">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
             <IconSearch className="w-4 h-4 text-[#64748B] stroke-[2]" />
           </div>
@@ -54,8 +54,8 @@ export const TopBar: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search locations, assets or projects..."
-            className="w-full pl-9 pr-12 py-1.5 bg-[#F8FAFC] text-[#0F172A] placeholder-[#94A3B8] text-xs border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#0284C7] focus:bg-white font-sans transition-all"
+            placeholder="Search locations, assets..."
+            className="w-full pl-9 pr-16 py-1.5 bg-[#F8FAFC] text-[#0F172A] placeholder-[#94A3B8] text-xs border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#0284C7] focus:bg-white font-sans transition-all"
           />
           <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
             <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#64748B] bg-[#E2E8F0] border border-[#CBD5E1] rounded">

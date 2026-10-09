@@ -10,7 +10,6 @@ import {
   IconDatabase,
   IconBrain,
   IconSettings,
-  IconShieldCheck,
   IconLogout,
 } from '@tabler/icons-react';
 
@@ -31,21 +30,25 @@ const secondaryNavItems = [
 
 export const Sidebar: React.FC = () => {
   return (
-    <aside className="w-[245px] shrink-0 bg-[#061A21] text-[#E2E8F0] flex flex-col justify-between h-screen sticky top-0 select-none z-30 border-r border-[#0F2D38] print:hidden">
+    <aside className="w-[275px] shrink-0 bg-[#061A21] text-[#E2E8F0] flex flex-col justify-between h-screen sticky top-0 select-none z-30 border-r border-[#0F2D38] print:hidden">
       <div className="flex flex-col">
         {/* Brand Header */}
-        <div className="p-4 border-b border-[#0F2D38]">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-lg bg-[#0E3541] border border-[#1A4B5B] flex items-center justify-center text-[#38BDF8]">
-              <IconShieldCheck className="w-5 h-5 stroke-[2]" />
+        <div className="h-14 px-4 border-b border-[#0F2D38] flex items-center shrink-0">
+          <div className="flex items-center space-x-3 w-full">
+            <div className="w-9.5 h-9.5 rounded-xl bg-white border border-[#1A4B5B] flex items-center justify-center p-0.5 overflow-hidden shrink-0 shadow-sm">
+              <img
+                src="/logo.jpg"
+                alt="GeoResQ Logo"
+                className="w-full h-full object-contain rounded-lg"
+              />
             </div>
-            <div>
-              <div className="font-extrabold text-base tracking-wider text-white leading-none font-sans flex items-center space-x-1.5">
-                <span>GEOAI 02</span>
-                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
+            <div className="flex-1 min-w-0">
+              <div className="font-extrabold text-base tracking-wider text-white leading-none font-sans flex items-center space-x-2">
+                <span className="truncate">GeoResQ</span>
+                <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse shrink-0" />
               </div>
-              <div className="text-[10px] font-semibold tracking-wider text-[#94A3B8] uppercase mt-1">
-                GeoResQ • GeoAI Platform
+              <div className="text-[10px] font-semibold tracking-wider text-[#38BDF8] uppercase mt-1 truncate">
+                GeoAI Intelligence Platform
               </div>
             </div>
           </div>

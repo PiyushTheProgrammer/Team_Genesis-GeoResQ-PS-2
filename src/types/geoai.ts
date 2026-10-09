@@ -112,7 +112,7 @@ export interface GeoAIModelSpec {
   limitations: string[];
 }
 
-export type ExportFormat = 'geojson' | 'csv' | 'pdf_summary' | 'geotiff';
+export type ExportFormat = 'geojson' | 'csv' | 'pdf_summary' | 'geotiff' | 'shapefile';
 
 export interface ClassTableItem {
   category: DetectionCategory;

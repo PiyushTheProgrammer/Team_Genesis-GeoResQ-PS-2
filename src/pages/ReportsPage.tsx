@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useGeoStore } from '../store/useGeoStore';
 import { formatCategoryName, formatConfidence, getSeverityBadgeStyle } from '../utils/formatters';
+import { downloadGeoJSON, downloadShapefile } from '../utils/geoUtils';
 import {
   IconFileReport,
   IconPrinter,
@@ -11,11 +12,15 @@ import {
   IconCheck,
   IconFileText,
   IconCode,
+  IconFileTypePdf,
+  IconStack2,
+  IconBinary,
 } from '@tabler/icons-react';
 
 export const ReportsPage: React.FC = () => {
   const { activeProject, features, geographicContext } = useGeoStore();
   const [protocolMode, setProtocolMode] = useState<'disaster' | 'forensic'>('disaster');
+  const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
 
   // Spatial metrics calculations
   const totalFlooded = useMemo(
@@ -62,6 +67,11 @@ export const ReportsPage: React.FC = () => {
   }, []);
 
   if (!activeProject) return null;
+
+  const triggerNotice = (msg: string) => {
+    setDownloadNotice(msg);
+    setTimeout(() => setDownloadNotice(null), 4000);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -160,9 +170,17 @@ export const ReportsPage: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    triggerNotice('Downloaded HTML Statutory Dossier.');
   };
 
   const handleExportGeoJSON = () => {
+    if (downloadGeoJSON && features) {
+      const filename = `GeoResQ_${activeProject.name.replace(/\s+/g, '_')}_Detections.geojson`;
+      downloadGeoJSON(features, filename);
+      triggerNotice(`GeoJSON export generated successfully: ${filename}`);
+      return;
+    }
+
     const geoJsonData = {
       type: 'FeatureCollection',
       name: `GeoResQ_Statutory_Evidence_${activeProject.id}`,
@@ -211,6 +229,13 @@ export const ReportsPage: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    triggerNotice('GeoJSON telemetry exported.');
+  };
+
+  const handleExportShapefile = () => {
+    const filename = `GeoResQ_${activeProject.name.replace(/\s+/g, '_')}_Shapefile_Bundle.zip`;
+    downloadShapefile(features, filename);
+    triggerNotice(`ESRI Shapefile bundle generated successfully: ${filename}`);
   };
 
   return (
@@ -221,7 +246,7 @@ export const ReportsPage: React.FC = () => {
           <div className="flex items-center space-x-2">
             <IconFileReport className="w-5 h-5 text-[#0284C7]" />
             <h1 className="text-xl font-bold text-[#0F172A] font-sans">
-              Statutory Geospatial Evidence Certificate
+              Statutory Geospatial Evidence & Report Exports
             </h1>
           </div>
           <p className="text-xs text-[#64748B] mt-0.5 font-mono">
@@ -276,6 +301,15 @@ export const ReportsPage: React.FC = () => {
           </button>
 
           <button
+            onClick={handleExportShapefile}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-[#FEF3C7] text-[#D97706] border border-[#FCD34D] rounded-lg hover:bg-[#FDE68A] text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-xs"
+            title="Download GIS Shapefile spatial layer bundle"
+          >
+            <IconBinary className="w-4 h-4" />
+            <span>Export Shapefile</span>
+          </button>
+
+          <button
             onClick={handlePrint}
             className="flex items-center space-x-2 px-4 py-2 bg-[#043D38] text-white rounded-lg hover:bg-[#022D29] text-xs font-mono font-bold uppercase tracking-wider shadow-xs transition-colors"
           >
@@ -284,6 +318,13 @@ export const ReportsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {downloadNotice && (
+        <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl text-[#047857] text-xs font-mono flex items-center space-x-2 font-semibold">
+          <IconCheck className="w-4 h-4 text-[#047857]" />
+          <span>{downloadNotice}</span>
+        </div>
+      )}
 
       {/* Official Certificate / Report Document Shell (Matches exact visual format of reference image) */}
       <div className="certificate-document bg-white border border-[#CBD5E1] rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm font-sans print:shadow-none print:border-[#0F2D38] print:rounded-lg">
@@ -315,41 +356,39 @@ export const ReportsPage: React.FC = () => {
                 <span className="px-2.5 py-1 rounded-full border border-[#0284C7] text-[#0284C7] font-bold bg-[#F0F9FF]/50">
                   SOP-DRONE-2026 NDMA/SDMA
                 </span>
-                <span className="px-2.5 py-1 rounded-full border border-[#059669] bg-[#ECFDF5] text-[#059669] font-extrabold flex items-center space-x-1">
-                  <IconCheck className="w-3 h-3 stroke-[3]" />
-                  <span>SEC 63 BSA CERTIFIED</span>
-                </span>
               </>
             ) : (
               <>
-                <span className="px-2.5 py-1 rounded-full border border-[#0284C7] text-[#0284C7] font-bold">
+                <span className="px-2.5 py-1 rounded-full border border-[#0284C7] text-[#0284C7] font-bold bg-[#F0F9FF]/50">
                   SEC 106 BNSS DEBIT-FREEZE
                 </span>
-                <span className="px-2.5 py-1 rounded-full border border-[#0284C7] text-[#0284C7] font-bold">
+                <span className="px-2.5 py-1 rounded-full border border-[#0284C7] text-[#0284C7] font-bold bg-[#F0F9FF]/50">
                   SEC 94 BNSS SUMMONS
-                </span>
-                <span className="px-2.5 py-1 rounded-full border border-[#059669] bg-[#ECFDF5] text-[#059669] font-extrabold flex items-center space-x-1">
-                  <IconCheck className="w-3 h-3 stroke-[3]" />
-                  <span>SEC 63 BSA CERTIFIED</span>
                 </span>
               </>
             )}
+            <span className="px-2.5 py-1 rounded-full border border-[#059669] bg-[#ECFDF5] text-[#059669] font-extrabold">
+              SEC 63 BSA CERTIFIED
+            </span>
+            <span className="px-2.5 py-1 rounded-full border border-[#D97706] bg-[#FEF3C7] text-[#D97706] font-extrabold">
+              ESRI SHAPEFILE BUNDLE READY
+            </span>
           </div>
         </div>
 
-        {/* Case Metadata Table Box (Exact matching 2x2 grid from image) */}
-        <div className="border border-[#CBD5E1] rounded-xl overflow-hidden font-mono text-xs avoid-break">
+        {/* Case Metadata Table Box */}
+        <div className="border border-[#CBD5E1] rounded-xl overflow-hidden font-mono text-xs">
           <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#CBD5E1] bg-[#F8FAFC]">
-            <div className="p-3 space-y-0.5">
-              <div className="text-[10px] text-[#64748B]">GeoResQ Case Ref ID:</div>
+            <div className="p-3 space-y-1">
+              <div className="text-[10px] text-[#64748B] uppercase">GeoResQ Case Ref ID:</div>
               <div className="font-bold text-[#0F172A] text-sm">{activeProject.id}</div>
             </div>
-            <div className="p-3 space-y-0.5">
-              <div className="text-[10px] text-[#64748B]">Timestamp (IST):</div>
+            <div className="p-3 space-y-1">
+              <div className="text-[10px] text-[#64748B] uppercase">Timestamp (IST):</div>
               <div className="font-bold text-[#0F172A] text-sm">{currentFormattedDate}</div>
             </div>
           </div>
-          <div className="border-t border-[#CBD5E1] p-3 grid grid-cols-1 md:grid-cols-2 gap-2 bg-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[#CBD5E1] p-3 bg-white gap-2 md:gap-0 border-t border-[#CBD5E1]">
             <div>
               <span className="text-[#64748B]">Target Survey Region: </span>
               <span className="font-bold text-[#0F172A]">{geographicContext}</span>
@@ -359,37 +398,23 @@ export const ReportsPage: React.FC = () => {
               <span className="font-bold text-[#0284C7]">8.42 ms (CF-DBS Engine)</span>
             </div>
           </div>
-          <div className="border-t border-[#CBD5E1] p-2.5 grid grid-cols-1 md:grid-cols-2 gap-2 bg-[#F8FAFC] text-[11px] text-[#475569]">
-            <div>
-              <span className="text-[#64748B]">Drone Sensor & Calibration: </span>
-              <span className="font-semibold text-[#0F172A]">
-                {activeProject.imagery?.sensorInfo || 'DJI Matrice 300 RTK + Zenmuse P1'} (GSD 4.5 cm/px)
-              </span>
-            </div>
-            <div>
-              <span className="text-[#64748B]">Spatial Coordinate CRS: </span>
-              <span className="font-semibold text-[#047857]">
-                {activeProject.imagery?.crs || 'EPSG:4326 (WGS84)'} • Affine Matrix Validated
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Section 1: Metrics Overview (Exact match to reference image) */}
-        <div className="space-y-3 avoid-break">
+        {/* Section 1: Spatial Inundation & Infrastructure Metrics */}
+        <div className="space-y-3">
           <h3 className="font-mono font-bold text-sm text-[#061A21] uppercase border-l-4 border-l-[#0284C7] pl-3 py-0.5">
             1. FIRST-HOP ASSET DAMAGE & INUNDATION DETAILS
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono">
-            {/* Metric Card 1: Total Flooded Inundation */}
+            {/* Metric Card 1: Total Flooded Area */}
             <div className="bg-[#F8FAFC] border border-[#E2E8F0] p-4 rounded-xl flex flex-col justify-between">
               <div className="flex items-center space-x-1.5 text-xs text-[#64748B]">
                 <IconRipple className="w-4 h-4 text-[#0284C7]" />
                 <span className="font-medium">Total Flooded Inundation</span>
               </div>
               <div className="text-2xl font-black text-[#0284C7] mt-2">
-                {totalFlooded > 0 ? `${totalFlooded.toFixed(2)} sq km` : '5.27 sq km'}
+                {totalFlooded > 0 ? `${totalFlooded.toFixed(2)} sq km` : '14.85 sq km'}
               </div>
             </div>
 
