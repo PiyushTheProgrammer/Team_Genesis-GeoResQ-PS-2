@@ -8,39 +8,54 @@ import { SeverityDistributionBar } from '../components/analysis/SeverityDistribu
 import { DetectedClassesTable } from '../components/tables/DetectedClassesTable';
 import { AreaTrendChart } from '../components/charts/AreaTrendChart';
 import { RecentAnalysesList } from '../components/projects/RecentAnalysesList';
+import { DroneLiveConnect } from '../components/drone/DroneLiveConnect';
+import { TimelineFlowView } from '../components/analysis/TimelineFlowView';
+import { useGeoStore } from '../store/useGeoStore';
 
 export const DashboardPage: React.FC = () => {
+  const { activeDashboardTab } = useGeoStore();
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-[#F5F3ED]">
+    <div className="flex-1 flex flex-col min-h-0 bg-[#F8FAFC]">
       {/* 1. Main Page Header */}
       <MainPageHeader />
 
       {/* 2. Main Dashboard Body */}
-      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {/* Top/Middle Workspace: Map + Side Panels */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          {/* Central Map & Layer Controls (7 cols on lg) */}
-          <div className="lg:col-span-8 flex flex-col space-y-3">
-            <div className="h-[480px] w-full">
-              <InteractiveMap className="h-full w-full" />
+      <div className="flex-1 p-4 space-y-6 overflow-y-auto max-w-7xl mx-auto w-full">
+        {/* If Timeline Tab is Active */}
+        {activeDashboardTab === 'timeline' ? (
+          <TimelineFlowView />
+        ) : (
+          <>
+            {/* Top Workspace: Map + Side Panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* Central Map & Layer Controls (8 cols on lg) */}
+              <div className="lg:col-span-8 flex flex-col space-y-3">
+                <div className="h-[480px] w-full">
+                  <InteractiveMap className="h-full w-full" />
+                </div>
+                <LayerControlPanel />
+              </div>
+
+              {/* Right Supporting Information Panels (4 cols on lg) */}
+              <div className="lg:col-span-4 flex flex-col space-y-3">
+                <SelectedAreaPanel />
+                <DetectionSummaryStack />
+                <SeverityDistributionBar />
+              </div>
             </div>
-            <LayerControlPanel />
-          </div>
 
-          {/* Right Supporting Information Panels (4 cols on lg) */}
-          <div className="lg:col-span-4 flex flex-col space-y-3">
-            <SelectedAreaPanel />
-            <DetectionSummaryStack />
-            <SeverityDistributionBar />
-          </div>
-        </div>
+            {/* Drone Live Connect Section (Mobile IP Webcam / Hardware Camera) */}
+            <DroneLiveConnect />
 
-        {/* Lower Workspace: 3 Practical Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <DetectedClassesTable />
-          <AreaTrendChart />
-          <RecentAnalysesList />
-        </div>
+            {/* Lower Workspace: 3 Practical Sections */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <DetectedClassesTable />
+              <AreaTrendChart />
+              <RecentAnalysesList />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

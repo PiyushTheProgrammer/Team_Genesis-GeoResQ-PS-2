@@ -1,23 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   IconSearch,
   IconMapPin,
   IconChevronDown,
   IconCheck,
   IconChevronRight,
-  IconPlayerPlay,
+  IconDrone,
 } from '@tabler/icons-react';
 import { useGeoStore } from '../../store/useGeoStore';
-
-const GEOGRAPHIC_OPTIONS = [
-  'Nashik, Maharashtra',
-  'Panchavati Sector, Nashik',
-  'Gangapur Dam Catchment',
-  'Trimbakeshwar Basin',
-  'Godavari River Overflow Zone',
-];
+import { REGIONS_REGISTRY } from '../../data/demoData';
 
 export const TopBar: React.FC = () => {
+  const navigate = useNavigate();
   const {
     geographicContext,
     setGeographicContext,
@@ -25,10 +20,12 @@ export const TopBar: React.FC = () => {
     setSearchQuery,
     isBackendConnected,
     activeProject,
-    triggerMockAnalysis,
+    droneTelemetry,
   } = useGeoStore();
 
   const [isLocationOpen, setIsLocationOpen] = useState(false);
+
+  const regionKeys = Object.keys(REGIONS_REGISTRY);
 
   return (
     <header className="h-14 bg-white border-b border-[#E2E8F0] px-4 flex items-center justify-between sticky top-0 z-20 shadow-xs print:hidden min-w-0">
@@ -40,7 +37,7 @@ export const TopBar: React.FC = () => {
           <IconChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
           <span>Projects</span>
           <IconChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
-          <span className="font-semibold text-[#0284C7] max-w-[110px] truncate" title={activeProject?.name}>
+          <span className="font-semibold text-[#0284C7] max-w-[130px] truncate" title={activeProject?.name}>
             {activeProject?.name || 'Godavari Basin'}
           </span>
         </div>
@@ -54,7 +51,7 @@ export const TopBar: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search locations, assets..."
+            placeholder="Search locations, GIS assets, flood zones..."
             className="w-full pl-9 pr-16 py-1.5 bg-[#F8FAFC] text-[#0F172A] placeholder-[#94A3B8] text-xs border border-[#E2E8F0] rounded-lg focus:outline-none focus:border-[#0284C7] focus:bg-white font-sans transition-all"
           />
           <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none">
@@ -65,59 +62,77 @@ export const TopBar: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Controls & CTA */}
+      {/* Right Controls */}
       <div className="flex items-center space-x-3">
-        {/* Geographic Context Selector */}
+        {/* Geographic Context Selector (Dynamic Location Switcher) */}
         <div className="relative">
           <button
             onClick={() => setIsLocationOpen(!isLocationOpen)}
-            className="flex items-center space-x-2 px-3 py-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg text-xs text-[#0F172A] hover:bg-[#F1F5F9] font-medium transition-colors"
+            className="flex items-center space-x-2 px-3 py-1.5 bg-[#F8FAFC] border border-[#CBD5E1] rounded-lg text-xs text-[#0F172A] hover:bg-[#F1F5F9] font-medium transition-colors shadow-xs"
+            title="Switch Active Survey Region (Pans GIS Map)"
           >
             <IconMapPin className="w-4 h-4 text-[#0284C7] stroke-[2]" />
-            <span className="font-mono text-xs font-semibold">{geographicContext}</span>
+            <span className="font-mono text-xs font-bold truncate max-w-[140px] sm:max-w-[180px]">
+              {geographicContext}
+            </span>
             <IconChevronDown className="w-3.5 h-3.5 text-[#64748B]" />
           </button>
 
           {isLocationOpen && (
-            <div className="absolute right-0 mt-1.5 w-60 bg-white border border-[#E2E8F0] rounded-xl shadow-lg py-1.5 z-50">
-              <div className="px-3 py-1.5 text-[10px] font-mono font-semibold uppercase text-[#64748B] border-b border-[#E2E8F0]">
-                Select Survey Region
+            <div className="absolute right-0 mt-1.5 w-72 bg-white border border-[#CBD5E1] rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-1">
+              <div className="px-3 py-1.5 text-[10px] font-mono font-bold uppercase text-[#64748B] border-b border-[#E2E8F0] flex justify-between items-center">
+                <span>Select Survey Region (Map Pans)</span>
+                <span className="text-[#0284C7] font-bold">{regionKeys.length} Regions</span>
               </div>
-              {GEOGRAPHIC_OPTIONS.map((loc) => (
-                <button
-                  key={loc}
-                  onClick={() => {
-                    setGeographicContext(loc);
-                    setIsLocationOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-2 text-xs font-mono flex items-center justify-between hover:bg-[#F1F5F9] transition-colors ${
-                    geographicContext === loc ? 'text-[#0284C7] font-semibold bg-[#F0F9FF]' : 'text-[#0F172A]'
-                  }`}
-                >
-                  <span>{loc}</span>
-                  {geographicContext === loc && <IconCheck className="w-4 h-4 text-[#0284C7]" />}
-                </button>
-              ))}
+              <div className="max-h-64 overflow-y-auto divide-y divide-[#F1F5F9]">
+                {regionKeys.map((loc) => {
+                  const reg = REGIONS_REGISTRY[loc];
+                  const isSelected = geographicContext === loc;
+                  return (
+                    <button
+                      key={loc}
+                      onClick={() => {
+                        setGeographicContext(loc);
+                        setIsLocationOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs font-mono flex flex-col hover:bg-[#F0F9FF] transition-colors ${
+                        isSelected ? 'bg-[#F0F9FF] text-[#0284C7] font-bold border-l-2 border-l-[#0284C7]' : 'text-[#0F172A]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{loc}</span>
+                        {isSelected && <IconCheck className="w-4 h-4 text-[#0284C7]" />}
+                      </div>
+                      <span className="text-[10px] text-[#64748B] font-sans font-normal mt-0.5">
+                        {reg?.disasterType || 'Flood Inundation Sector'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Live Drone Connectivity Quick Badge */}
+        <div
+          onClick={() => navigate('/map')}
+          className={`cursor-pointer hidden md:flex items-center space-x-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-bold border transition-colors ${
+            droneTelemetry.isConnected
+              ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]'
+              : 'bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B]'
+          }`}
+          title="Drone Live Stream Status"
+        >
+          <IconDrone className={`w-3.5 h-3.5 ${droneTelemetry.isConnected ? 'text-[#10B981]' : 'text-[#64748B]'}`} />
+          <span>{droneTelemetry.isConnected ? 'Drone Connected' : 'Drone Offline'}</span>
         </div>
 
         {/* Integration Status Badge */}
         <div className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 bg-[#ECFDF5] border border-[#A7F3D0] rounded-full text-[11px] font-mono font-bold text-[#047857]">
           <span className="w-2 h-2 rounded-full bg-[#10B981] animate-pulse" />
-          <span>{isBackendConnected ? 'API Integrated' : 'GeoAI Integrated'}</span>
+          <span>{isBackendConnected ? 'Backend API Active' : 'GeoAI Vision v2.4'}</span>
         </div>
-
-        {/* Primary CTA Button matching reference Image 1 */}
-        <button
-          onClick={() =>
-            triggerMockAnalysis(activeProject?.name || 'Godavari Survey', 'GeoResQ-Vision-v2.4')
-          }
-          className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#043D38] text-white border border-[#043D38] rounded-lg hover:bg-[#022D29] text-xs font-semibold shadow-xs transition-colors"
-        >
-          <IconPlayerPlay className="w-3.5 h-3.5 fill-current" />
-          <span>Run AI Trace</span>
-        </button>
       </div>
     </header>
   );

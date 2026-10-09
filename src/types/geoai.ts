@@ -27,7 +27,33 @@ export interface DetectionFeature {
   projectName: string;
   detectedAt: string;
   notes?: string;
+  validationStatus?: 'verified' | 'unreviewed' | 'flagged' | 'rejected';
+  inspectorNotes?: string;
   attributes?: Record<string, string | number | boolean>;
+}
+
+export interface RegionLocation {
+  id: string;
+  name: string;
+  state: string;
+  center: [number, number]; // [lat, lng]
+  zoom: number;
+  description: string;
+  disasterType: 'Riverine Flood' | 'Flash Flood' | 'Dam Spillway Surge' | 'Urban Waterlogging' | 'Landslide Inundation';
+}
+
+export interface DroneTelemetry {
+  isConnected: boolean;
+  streamUrl: string;
+  mode: 'ipwebcam' | 'browsercam' | 'simulated';
+  altitudeM: number;
+  batteryPct: number;
+  speedMps: number;
+  headingDeg: number;
+  fps: number;
+  lat: number;
+  lng: number;
+  signalQuality: 'Excellent' | 'Good' | 'Fair' | 'Weak';
 }
 
 export interface DetectionSummaryRow {
