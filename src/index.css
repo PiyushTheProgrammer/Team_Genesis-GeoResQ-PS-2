@@ -80,3 +80,66 @@
   font-size: 13px !important;
   line-height: 1.5 !important;
 }
+
+/* ========================================================
+   HIGH-FIDELITY PRINT & PDF CERTIFICATE STYLESHEET
+   ======================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 12mm 12mm;
+  }
+
+  /* Force hide all web application navigation and chrome */
+  aside,
+  header,
+  nav,
+  button,
+  .print\:hidden,
+  .no-print,
+  .leaflet-control-container {
+    display: none !important;
+  }
+
+  /* Reset global viewport and scrolling restrictions */
+  html,
+  body,
+  #root {
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Retain full color, badge backgrounds, and borders in PDF */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Certificate root document formatting */
+  .certificate-document {
+    border: 1.5px solid #0F2D38 !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    padding: 20px !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #FFFFFF !important;
+    page-break-after: avoid;
+  }
+
+  /* Prevent awkward page cutoffs */
+  .avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+

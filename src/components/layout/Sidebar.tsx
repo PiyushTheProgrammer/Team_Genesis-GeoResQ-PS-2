@@ -31,7 +31,7 @@ const secondaryNavItems = [
 
 export const Sidebar: React.FC = () => {
   return (
-    <aside className="w-[245px] shrink-0 bg-[#061A21] text-[#E2E8F0] flex flex-col justify-between h-screen sticky top-0 select-none z-30 border-r border-[#0F2D38]">
+    <aside className="w-[245px] shrink-0 bg-[#061A21] text-[#E2E8F0] flex flex-col justify-between h-screen sticky top-0 select-none z-30 border-r border-[#0F2D38] print:hidden">
       <div className="flex flex-col">
         {/* Brand Header */}
         <div className="p-4 border-b border-[#0F2D38]">

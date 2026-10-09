@@ -31,7 +31,7 @@ export const TopBar: React.FC = () => {
   const [isLocationOpen, setIsLocationOpen] = useState(false);
 
   return (
-    <header className="h-14 bg-white border-b border-[#E2E8F0] px-4 flex items-center justify-between sticky top-0 z-20 shadow-xs">
+    <header className="h-14 bg-white border-b border-[#E2E8F0] px-4 flex items-center justify-between sticky top-0 z-20 shadow-xs print:hidden">
       {/* Breadcrumbs & Search */}
       <div className="flex items-center space-x-4 flex-1 max-w-2xl">
         {/* Breadcrumb Trail */}

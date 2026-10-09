@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   IconArrowLeft,
@@ -53,6 +53,15 @@ export const MainPageHeader: React.FC<MainPageHeaderProps> = ({
         </div>
 
         <div className="flex items-center space-x-2.5">
+          <button
+            onClick={() => navigate('/reports')}
+            className="flex items-center space-x-2 px-3.5 py-1.5 bg-[#F0F9FF] text-[#0369A1] border border-[#BAE6FD] rounded-lg hover:bg-[#E0F2FE] text-xs font-semibold transition-colors font-mono"
+            title="View & Download Statutory Evidence Certificate"
+          >
+            <IconFileCertificate className="w-4 h-4 text-[#0284C7]" />
+            <span>Evidence Certificate</span>
+          </button>
+
           <button
             onClick={() => navigate('/upload')}
             className="flex items-center space-x-2 px-3.5 py-1.5 bg-[#F1F5F9] text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#E2E8F0] text-xs font-semibold transition-colors"
@@ -130,6 +139,7 @@ export const MainPageHeader: React.FC<MainPageHeaderProps> = ({
           { id: 'map', label: 'Interactive Map', icon: IconStack2, path: '/map' },
           { id: 'timeline', label: 'Timeline Flow', icon: IconTimeline },
           { id: 'evidence', label: 'Detection Evidence', icon: IconFileCertificate, path: '/assets' },
+          { id: 'reports', label: 'Statutory Certificate', icon: IconFileCertificate, path: '/reports' },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
