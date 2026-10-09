@@ -3,7 +3,6 @@ import {
   Project,
   AnalysisJob,
   DetectionFeature,
-  DetectionSummaryRow,
   LayerConfiguration,
   ExportFormat,
 } from '../types/geoai';

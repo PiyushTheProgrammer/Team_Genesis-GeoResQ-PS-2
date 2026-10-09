@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { IconDatabase, IconWorld, IconRadio, IconSearch, IconCheck } from '@tabler/icons-react';
+import { IconDatabase, IconSearch } from '@tabler/icons-react';
 
 export const DataSourcesPage: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState('ALL');

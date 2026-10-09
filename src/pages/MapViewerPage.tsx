@@ -9,7 +9,6 @@ import {
   IconFocus2,
   IconCrosshair,
   IconDownload,
-  IconCheck,
 } from '@tabler/icons-react';
 
 export const MapViewerPage: React.FC = () => {

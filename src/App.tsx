@@ -11,16 +11,31 @@ import { DataSourcesPage } from './pages/DataSourcesPage';
 import { ModelInsightsPage } from './pages/ModelInsightsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { useGeoStore } from './store/useGeoStore';
-import { checkBackendHealth } from './services/api';
+import { checkBackendHealth, fetchProjects, getAnalysisFeatures } from './services/api';
 
 export const App: React.FC = () => {
-  const { setBackendConnected } = useGeoStore();
+  const { setBackendConnected, setProjects, setActiveProject, setFeatures } = useGeoStore();
 
   useEffect(() => {
-    checkBackendHealth().then((isOnline) => {
+    checkBackendHealth().then(async (isOnline) => {
       setBackendConnected(isOnline);
+      if (isOnline) {
+        try {
+          const projs = await fetchProjects();
+          if (projs && projs.length > 0) {
+            setProjects(projs);
+            setActiveProject(projs[0]);
+            const feats = await getAnalysisFeatures(projs[0].id);
+            if (feats && feats.length > 0) {
+              setFeatures(feats);
+            }
+          }
+        } catch (err) {
+          console.warn('Backend sync warning:', err);
+        }
+      }
     });
-  }, [setBackendConnected]);
+  }, [setBackendConnected, setProjects, setActiveProject, setFeatures]);
 
   return (
     <BrowserRouter>

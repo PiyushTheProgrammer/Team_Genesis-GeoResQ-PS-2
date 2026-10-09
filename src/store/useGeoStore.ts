@@ -6,11 +6,8 @@ import {
   AnalysisJob,
   TileProviderOption,
 } from '../types/geoai';
-import {
-  DEMO_PROJECTS,
-  DEMO_FEATURES,
-  DEMO_LAYER_CONFIGS,
-} from '../data/demoData';
+import { DEMO_PROJECTS, DEMO_FEATURES, DEMO_LAYER_CONFIGS } from '../data/demoData';
+import { submitAnalysisJob, getAnalysisFeatures } from '../services/api';
 
 interface GeoState {
   projects: Project[];
@@ -55,7 +52,16 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   currentJob: null,
 
   setProjects: (projects) => set({ projects }),
-  setActiveProject: (project) => set({ activeProject: project, selectedFeature: null }),
+  setActiveProject: (project) => {
+    set({ activeProject: project, selectedFeature: null });
+    if (project) {
+      getAnalysisFeatures(project.id).then((feats) => {
+        if (feats && feats.length > 0) {
+          set({ features: feats });
+        }
+      });
+    }
+  },
   setFeatures: (features) => set({ features }),
   setSelectedFeature: (feature) => set({ selectedFeature: feature }),
 
@@ -81,43 +87,68 @@ export const useGeoStore = create<GeoState>((set, get) => ({
   setCurrentJob: (job) => set({ currentJob: job }),
 
   triggerMockAnalysis: (projectName, modelName) => {
+    const activeProj = get().activeProject;
+    const projId = activeProj?.id || 'proj-nashik-2026-001';
+
     const newJob: AnalysisJob = {
       id: `job-${Date.now()}`,
-      projectId: get().activeProject?.id || 'proj-nashik-2026-001',
+      projectId: projId,
       projectName: projectName || 'Uploaded Imagery Survey',
       status: 'processing',
-      progressPercent: 10,
+      progressPercent: 15,
       submittedAt: new Date().toISOString(),
-      modelName: modelName || 'GeoResQ-Vision-v2.4',
+      modelName: modelName || 'GeoResQ-Vision-v3.8',
       confidenceThreshold: 0.75,
     };
 
     set({ currentJob: newJob });
 
-    // Step updates statically without bouncy smooth animation
-    setTimeout(() => {
-      set((st) => ({
-        currentJob: st.currentJob ? { ...st.currentJob, progressPercent: 45 } : null,
-      }));
-    }, 1200);
-
-    setTimeout(() => {
-      set((st) => ({
-        currentJob: st.currentJob ? { ...st.currentJob, progressPercent: 85 } : null,
-      }));
-    }, 2400);
-
-    setTimeout(() => {
-      set((st) => ({
-        currentJob: st.currentJob
-          ? {
-              ...st.currentJob,
-              status: 'completed',
-              progressPercent: 100,
-              completedAt: new Date().toISOString(),
+    if (get().isBackendConnected) {
+      submitAnalysisJob({
+        projectId: projId,
+        modelName: modelName || 'GeoResQ-Vision-v3.8',
+        confidenceThreshold: 0.75,
+      }).then((apiJob) => {
+        set({ currentJob: { ...apiJob, progressPercent: 60 } });
+        setTimeout(async () => {
+          const liveFeats = await getAnalysisFeatures(apiJob.id);
+          if (liveFeats && liveFeats.length > 0) {
+            set({ features: liveFeats });
+            if (activeProj) {
+              const floodedSum = liveFeats
+                .filter((f) => f.category === 'flooded_area')
+                .reduce((acc, f) => acc + (f.areaSqKm || 0), 0);
+              set({
+                activeProject: {
+                  ...activeProj,
+                  featuresCount: liveFeats.length,
+                  totalAffectedAreaSqKm: Math.round(floodedSum * 100) / 100,
+                },
+              });
             }
-          : null,
-      }));
-    }, 3600);
+          }
+          set({ currentJob: { ...apiJob, status: 'completed', progressPercent: 100 } });
+        }, 1500);
+      });
+    } else {
+      setTimeout(() => {
+        set((st) => ({
+          currentJob: st.currentJob ? { ...st.currentJob, progressPercent: 60 } : null,
+        }));
+      }, 1000);
+
+      setTimeout(() => {
+        set((st) => ({
+          currentJob: st.currentJob
+            ? {
+                ...st.currentJob,
+                status: 'completed',
+                progressPercent: 100,
+                completedAt: new Date().toISOString(),
+              }
+            : null,
+        }));
+      }, 2000);
+    }
   },
 }));
