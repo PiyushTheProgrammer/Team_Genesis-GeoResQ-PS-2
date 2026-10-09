@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   IconLayoutDashboard,
   IconMap,
+  IconDrone,
   IconUpload,
   IconTarget,
   IconFileReport,
@@ -16,6 +17,7 @@ import {
 const navItems = [
   { label: 'Dashboard', path: '/', icon: IconLayoutDashboard },
   { label: 'Map Viewer', path: '/map', icon: IconMap },
+  { label: 'Drone Live Stream', path: '/drone-live', icon: IconDrone },
   { label: 'Upload & Analyze', path: '/upload', icon: IconUpload },
   { label: 'Detected Assets', path: '/assets', icon: IconTarget },
   { label: 'Reports', path: '/reports', icon: IconFileReport },

@@ -8,7 +8,6 @@ import { SeverityDistributionBar } from '../components/analysis/SeverityDistribu
 import { DetectedClassesTable } from '../components/tables/DetectedClassesTable';
 import { AreaTrendChart } from '../components/charts/AreaTrendChart';
 import { RecentAnalysesList } from '../components/projects/RecentAnalysesList';
-import { DroneLiveConnect } from '../components/drone/DroneLiveConnect';
 import { TimelineFlowView } from '../components/analysis/TimelineFlowView';
 import { useGeoStore } from '../store/useGeoStore';
 
@@ -44,9 +43,6 @@ export const DashboardPage: React.FC = () => {
                 <SeverityDistributionBar />
               </div>
             </div>
-
-            {/* Drone Live Connect Section (Mobile IP Webcam / Hardware Camera) */}
-            <DroneLiveConnect />
 
             {/* Lower Workspace: 3 Practical Sections */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

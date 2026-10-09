@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { InteractiveMap } from '../components/map/InteractiveMap';
 import { LayerControlPanel } from '../components/map/LayerControlPanel';
-import { DroneLiveConnect } from '../components/drone/DroneLiveConnect';
 import { useGeoStore } from '../store/useGeoStore';
 import { REGIONS_REGISTRY } from '../data/demoData';
 import { formatCategoryName, formatConfidence, getSeverityBadgeStyle } from '../utils/formatters';
@@ -13,7 +12,6 @@ import {
   IconCrosshair,
   IconDownload,
   IconMapPin,
-  IconDrone,
   IconChevronDown,
   IconShieldCheck,
   IconBinary,
@@ -26,13 +24,10 @@ export const MapViewerPage: React.FC = () => {
     setSelectedFeature,
     geographicContext,
     setGeographicContext,
-    activeProject,
-    verifyFeature,
   } = useGeoStore();
 
   const [activeTab, setActiveTab] = useState<'layers' | 'features'>('layers');
   const [featureSearch, setFeatureSearch] = useState('');
-  const [showDroneSection, setShowDroneSection] = useState(true);
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
 
   const regionKeys = Object.keys(REGIONS_REGISTRY);
@@ -101,18 +96,6 @@ export const MapViewerPage: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setShowDroneSection(!showDroneSection)}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase border transition-colors shadow-xs ${
-              showDroneSection
-                ? 'bg-[#0284C7] text-white border-[#0284C7]'
-                : 'bg-white text-[#0F172A] border-[#CBD5E1] hover:bg-[#F1F5F9]'
-            }`}
-          >
-            <IconDrone className="w-4 h-4" />
-            <span>{showDroneSection ? 'Hide Drone Stream' : 'Show Drone Stream'}</span>
-          </button>
-
-          <button
             onClick={() => downloadGeoJSON(features)}
             className="flex items-center space-x-1.5 px-3 py-1.5 bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs font-mono font-bold uppercase shadow-xs"
           >
@@ -136,14 +119,14 @@ export const MapViewerPage: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Main Map Viewport */}
           <div className="lg:col-span-8 flex flex-col space-y-3">
-            <div className="h-[520px] w-full">
+            <div className="h-[560px] w-full">
               <InteractiveMap className="h-full w-full" />
             </div>
             <LayerControlPanel />
           </div>
 
           {/* Right Side Inspector Drawer (4 cols) */}
-          <div className="lg:col-span-4 bg-white border border-[#CBD5E1] rounded-2xl flex flex-col h-[520px] overflow-hidden shadow-xs">
+          <div className="lg:col-span-4 bg-white border border-[#CBD5E1] rounded-2xl flex flex-col h-[560px] overflow-hidden shadow-xs">
             {/* Drawer Tabs */}
             <div className="flex border-b border-[#CBD5E1] bg-[#F8FAFC] font-mono text-xs shrink-0">
               <button
@@ -191,7 +174,7 @@ export const MapViewerPage: React.FC = () => {
                     className="w-full px-3 py-1.5 bg-[#F8FAFC] text-[#0F172A] text-xs font-mono border border-[#CBD5E1] rounded-lg focus:outline-none focus:border-[#0284C7]"
                   />
 
-                  <div className="space-y-2 max-h-[380px] overflow-y-auto divide-y divide-[#F1F5F9]">
+                  <div className="space-y-2 max-h-[420px] overflow-y-auto divide-y divide-[#F1F5F9]">
                     {filteredFeatures.map((feat) => {
                       const isSelected = selectedFeature?.id === feat.id;
                       const badge = getSeverityBadgeStyle(feat.severity);
@@ -238,9 +221,6 @@ export const MapViewerPage: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* Drone Live Connect Section (Positioned Directly Below Map Viewer as Requested!) */}
-        {showDroneSection && <DroneLiveConnect />}
       </div>
     </div>
   );
