@@ -4,6 +4,7 @@ import { PageShell } from './components/layout/PageShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { MapViewerPage } from './pages/MapViewerPage';
 import { DroneLivePage } from './pages/DroneLivePage';
+import { DemoSimulatePage } from './pages/DemoSimulatePage';
 import { UploadAnalyzePage } from './pages/UploadAnalyzePage';
 import { DetectedAssetsPage } from './pages/DetectedAssetsPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -45,6 +46,7 @@ export const App: React.FC = () => {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/map" element={<MapViewerPage />} />
           <Route path="/drone-live" element={<DroneLivePage />} />
+          <Route path="/demo-simulate" element={<DemoSimulatePage />} />
           <Route path="/upload" element={<UploadAnalyzePage />} />
           <Route path="/assets" element={<DetectedAssetsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
