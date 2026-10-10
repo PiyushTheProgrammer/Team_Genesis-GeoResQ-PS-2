@@ -1,34 +1,89 @@
 import os
+import sys
 import time
 import random
 import sqlite3
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
+
+# Ensure current directory, parent (backend), and root are in sys.path
+_current_dir = Path(__file__).resolve().parent
+_backend_dir = _current_dir.parent
+_root_dir = _backend_dir.parent
+
+for _p in [str(_current_dir), str(_backend_dir), str(_root_dir)]:
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
-from backend.app.models import (
-    Project,
-    DetectionFeature,
-    AnalysisJob,
-    LayerConfiguration,
-    CreateProjectRequest,
-    SubmitAnalysisRequest,
-    SeverityDistribution,
-    ImageryMetadata,
-)
-from backend.app.gemini_analyzer import (
-    analyze_image_with_gemini,
-    generate_dynamic_spatial_features,
-    REGION_COORDS,
-)
-from backend.app.unet_analyzer import (
-    is_unet_available,
-    analyze_image_with_unet,
-)
+try:
+    from backend.app.models import (
+        Project,
+        DetectionFeature,
+        AnalysisJob,
+        LayerConfiguration,
+        CreateProjectRequest,
+        SubmitAnalysisRequest,
+        SeverityDistribution,
+        ImageryMetadata,
+    )
+    from backend.app.gemini_analyzer import (
+        analyze_image_with_gemini,
+        generate_dynamic_spatial_features,
+        REGION_COORDS,
+    )
+    from backend.app.unet_analyzer import (
+        is_unet_available,
+        analyze_image_with_unet,
+    )
+except ModuleNotFoundError:
+    try:
+        from app.models import (
+            Project,
+            DetectionFeature,
+            AnalysisJob,
+            LayerConfiguration,
+            CreateProjectRequest,
+            SubmitAnalysisRequest,
+            SeverityDistribution,
+            ImageryMetadata,
+        )
+        from app.gemini_analyzer import (
+            analyze_image_with_gemini,
+            generate_dynamic_spatial_features,
+            REGION_COORDS,
+        )
+        from app.unet_analyzer import (
+            is_unet_available,
+            analyze_image_with_unet,
+        )
+    except ModuleNotFoundError:
+        from models import (
+            Project,
+            DetectionFeature,
+            AnalysisJob,
+            LayerConfiguration,
+            CreateProjectRequest,
+            SubmitAnalysisRequest,
+            SeverityDistribution,
+            ImageryMetadata,
+        )
+        from gemini_analyzer import (
+            analyze_image_with_gemini,
+            generate_dynamic_spatial_features,
+            REGION_COORDS,
+        )
+        from unet_analyzer import (
+            is_unet_available,
+            analyze_image_with_unet,
+        )
 
 load_dotenv()
+
 
 DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "sqlite:///./georesq.db"
 
@@ -424,3 +479,9 @@ async def export_data(jobId: str, format: str = Query("geojson")):
         "downloadUrl": f"/api/v1/analyses/{jobId}/download?format={format}",
         "filename": filename
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
+
