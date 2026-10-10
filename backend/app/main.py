@@ -202,18 +202,41 @@ def run_tiered_disaster_analysis(
     """
     Tiered Dual-Engine Strategy:
     1. PRIMARY ML MODEL: PyTorch UNet Model ('genresq_unet_best.pth')
-    2. SECONDARY / FALLBACK ENGINE: Google Gemini Vision AI API (or Spatial Engine)
+    2. SECONDARY / ENHANCEMENT ENGINE: Google Gemini Vision AI API
     """
-    if is_unet_available():
-        print(f"[GeoResQ Pipeline] Executing Primary ML Model (genresq_unet_best.pth) for {project_id}...")
-        unet_features = analyze_image_with_unet(image_bytes, project_id, project_name, location)
-        if unet_features and len(unet_features) > 0:
-            print(f"[GeoResQ Pipeline] genresq_unet_best.pth generated {len(unet_features)} detection features.")
+    unet_features: List[Dict[str, Any]] = []
+
+    if is_unet_available() and image_bytes and len(image_bytes) > 0:
+        print(f"[GeoResQ Pipeline] Executing Primary ML Model (genresq_unet_best.pth) on image for {project_id}...")
+        unet_res = analyze_image_with_unet(image_bytes, project_id, project_name, location)
+        if unet_res:
+            unet_features = unet_res
+
+        has_damaged_bldg = any(f.get("category") == "damaged_building" for f in unet_features)
+        total_area = sum(f.get("areaSqKm", 0.0) for f in unet_features)
+
+        # If UNet detected robust features (multiple features, damaged structures, or large coverage):
+        if len(unet_features) > 0 and (has_damaged_bldg or total_area >= 0.20):
+            print(f"[GeoResQ Pipeline] Primary UNet identified {len(unet_features)} comprehensive disaster features (area: {total_area:.3f} sq km).")
             return unet_features, "genresq_unet_best.pth (PyTorch Custom UNet)"
 
-    print(f"[GeoResQ Pipeline] Falling back to Gemini Vision API / AI Key for {project_id}...")
+        if len(unet_features) == 0:
+            print("[GeoResQ Pipeline] UNet detected 0 features. Cascading to Google Gemini Vision AI API...")
+        else:
+            print(f"[GeoResQ Pipeline] UNet detected only partial water ({total_area:.3f} sq km, 0 buildings). Cascading to Google Gemini Vision for full disaster assessment...")
+
+    # Secondary / Fallback: Google Gemini Vision AI API
+    print(f"[GeoResQ Pipeline] Executing Google Gemini Vision API for {project_id}...")
     gemini_features = analyze_image_with_gemini(image_bytes, project_id, project_name, location)
-    return gemini_features, "Google Gemini Vision API + Spatial Engine"
+    if gemini_features and len(gemini_features) > 0:
+        return gemini_features, "Google Gemini Vision API"
+
+    # If Gemini returned empty or had network issue, return UNet features if available
+    if unet_features and len(unet_features) > 0:
+        return unet_features, "genresq_unet_best.pth (PyTorch Custom UNet)"
+
+    return [], "genresq_unet_best.pth (PyTorch Custom UNet)"
+
 
 def init_default_project():
     if DEFAULT_PROJECT_ID not in PROJECTS_DB:
@@ -423,7 +446,31 @@ async def upload_imagery(projectId: str, imagery_file: UploadFile = File(...)):
         "modelUsed": model_used,
         "detectedFeaturesCount": len(detected_features),
         "totalFloodedAreaSqKm": proj.totalAffectedAreaSqKm,
+        "features": [f.model_dump() if hasattr(f, "model_dump") else f.dict() for f in detected_features],
     }
+
+@app.post("/api/v1/analyses/analyze-image")
+async def analyze_image_endpoint(
+    file: UploadFile = File(...),
+    model_name: Optional[str] = Query(None),
+    location: Optional[str] = Query("Nashik, Maharashtra")
+):
+    file_bytes = await file.read()
+    project_id = f"upload-{int(time.time())}"
+    raw_feats, used_model = run_tiered_disaster_analysis(
+        image_bytes=file_bytes if len(file_bytes) > 0 else None,
+        project_id=project_id,
+        project_name=file.filename or "Uploaded Drone Survey",
+        location=location or "Nashik, Maharashtra"
+    )
+    return {
+        "success": True,
+        "filename": file.filename,
+        "modelUsed": used_model,
+        "detectedFeaturesCount": len(raw_feats),
+        "features": raw_feats,
+    }
+
 
 @app.post("/api/v1/drone/analyze-frame")
 async def analyze_drone_frame(frame_data: Dict[str, Any] = Body(...)):
