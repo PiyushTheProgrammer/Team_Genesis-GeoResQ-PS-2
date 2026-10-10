@@ -84,8 +84,8 @@ except ModuleNotFoundError:
 
 load_dotenv()
 
-
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "sqlite:///./georesq.db"
+DEFAULT_SUPABASE_URL = "postgresql://postgres.gehfjqpqwcqgrchsmcmg:AlphaProgrammer%40140406@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or DEFAULT_SUPABASE_URL
 
 app = FastAPI(
     title="GeoResQ Disaster AI Backend Server",
@@ -109,29 +109,89 @@ JOBS_DB: Dict[str, AnalysisJob] = {}
 DEFAULT_PROJECT_ID = "proj-nashik-2026-001"
 
 def init_db():
-    """Initializes local SQLite/PostgreSQL tables if needed."""
+    """Initializes Supabase PostgreSQL / SQLite database tables on startup."""
+    print(f"[Supabase DB] Connecting to database: {DATABASE_URL.split('@')[-1]}...")
     try:
-        conn = sqlite3.connect("georesq.db")
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS spatial_features (
-                id TEXT PRIMARY KEY,
-                category TEXT,
-                name TEXT,
-                confidence REAL,
-                severity TEXT,
-                geometry_type TEXT,
-                coordinates TEXT,
-                area_sq_km REAL,
-                length_km REAL,
-                project_id TEXT,
-                detected_at TEXT
-            )
-        """)
-        conn.commit()
-        conn.close()
+        if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
+            import psycopg2
+            conn = psycopg2.connect(DATABASE_URL, connect_timeout=8)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS projects (
+                    id VARCHAR(100) PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    location VARCHAR(255),
+                    description TEXT,
+                    status VARCHAR(50),
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    features_count INT DEFAULT 0,
+                    total_affected_area_sq_km FLOAT DEFAULT 0.0,
+                    severity_distribution JSONB,
+                    imagery_metadata JSONB,
+                    model_used VARCHAR(100)
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS spatial_features (
+                    id VARCHAR(100) PRIMARY KEY,
+                    project_id VARCHAR(100) REFERENCES projects(id) ON DELETE CASCADE,
+                    category VARCHAR(100),
+                    name VARCHAR(255),
+                    confidence FLOAT,
+                    severity VARCHAR(50),
+                    geometry_type VARCHAR(50),
+                    coordinates JSONB,
+                    area_sq_km FLOAT DEFAULT 0.0,
+                    length_km FLOAT DEFAULT 0.0,
+                    detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    details TEXT
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS analysis_jobs (
+                    id VARCHAR(100) PRIMARY KEY,
+                    project_id VARCHAR(100),
+                    project_name VARCHAR(255),
+                    status VARCHAR(50),
+                    progress_percent INT DEFAULT 0,
+                    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    completed_at TIMESTAMP WITH TIME ZONE,
+                    model_name VARCHAR(100),
+                    confidence_threshold FLOAT DEFAULT 0.75,
+                    detected_features_count INT DEFAULT 0
+                );
+            """)
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print("[Supabase DB SUCCESS] PostgreSQL tables verified and active!")
+        else:
+            conn = sqlite3.connect("georesq.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS spatial_features (
+                    id TEXT PRIMARY KEY,
+                    category TEXT,
+                    name TEXT,
+                    confidence REAL,
+                    severity TEXT,
+                    geometry_type TEXT,
+                    coordinates TEXT,
+                    area_sq_km REAL,
+                    length_km REAL,
+                    project_id TEXT,
+                    detected_at TEXT
+                )
+            """)
+            conn.commit()
+            conn.close()
     except Exception as e:
-        print(f"[DB Notice] SQLite DB init note: {e}")
+        print(f"[DB Notice] Database init notice: {e}")
+
 
 def run_tiered_disaster_analysis(
     image_bytes: Optional[bytes],
