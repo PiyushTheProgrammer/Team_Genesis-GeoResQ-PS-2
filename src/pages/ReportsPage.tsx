@@ -31,6 +31,7 @@ import {
   IconDatabase,
   IconCalendar,
   IconExternalLink,
+  IconTrash,
 } from '@tabler/icons-react';
 import { DetectionFeature, Project } from '../types/geoai';
 
@@ -45,6 +46,7 @@ export const ReportsPage: React.FC = () => {
     features,
     fetchProjectFeatures,
     featuresByProjectId,
+    deleteProject,
   } = useGeoStore();
 
   // State: selectedCaseId is null when viewing the list, or string when viewing a specific case report
@@ -56,6 +58,80 @@ export const ReportsPage: React.FC = () => {
   const [downloadNotice, setDownloadNotice] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [caseFeatures, setCaseFeatures] = useState<DetectionFeature[]>([]);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!projectToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteProject(projectToDelete.id);
+      setDownloadNotice(`Statutory report for "${projectToDelete.name}" (${projectToDelete.id}) was successfully deleted.`);
+      setTimeout(() => setDownloadNotice(null), 5000);
+      if (selectedCaseId === projectToDelete.id) {
+        setSelectedCaseId(null);
+      }
+      setProjectToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      alert('Failed to delete report. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const renderDeleteModal = () => {
+    if (!projectToDelete) return null;
+    return (
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 print:hidden animate-in fade-in duration-200">
+        <div className="bg-white rounded-2xl border border-[#CBD5E1] shadow-2xl max-w-md w-full p-6 space-y-4 font-mono">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center shrink-0">
+              <IconTrash className="w-5 h-5 text-[#DC2626]" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-[#0F172A]">Delete Statutory Report?</h3>
+              <p className="text-xs text-[#64748B] mt-0.5">Permanent Deletion Confirmation</p>
+            </div>
+          </div>
+
+          <div className="bg-[#FFF1F2] border border-[#FFE4E6] p-3.5 rounded-xl text-xs text-[#9F1239] space-y-1">
+            <p className="font-semibold">
+              Are you sure you want to delete this statutory report and its drone survey analysis?
+            </p>
+            <div className="font-bold text-[#0F172A] pt-1">
+              &bull; Survey: {projectToDelete.name}
+            </div>
+            <div className="text-[11px] text-[#64748B]">
+              &bull; Case ID: {projectToDelete.id}
+            </div>
+          </div>
+
+          <p className="text-xs text-[#64748B] leading-relaxed">
+            This action will permanently delete this statutory report dossier and its georeferenced GIS asset telemetry from the local system and Supabase PostgreSQL.
+          </p>
+
+          <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#E2E8F0]">
+            <button
+              onClick={() => setProjectToDelete(null)}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-white text-[#475569] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              disabled={isDeleting}
+              className="px-4 py-2 bg-[#DC2626] text-white rounded-lg hover:bg-[#B91C1C] text-xs font-bold transition-colors shadow-xs flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <IconTrash className={`w-3.5 h-3.5 ${isDeleting ? 'animate-spin' : ''}`} />
+              <span>{isDeleting ? 'Deleting...' : 'Confirm Delete Report'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Refresh project surveys from backend / Supabase on mount
   useEffect(() => {
@@ -821,17 +897,30 @@ export const ReportsPage: React.FC = () => {
                   </div>
 
                   {/* Actions Bar for this Case */}
-                  <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between gap-2">
+                  <div className="pt-3 border-t border-[#E2E8F0] flex flex-wrap sm:flex-nowrap items-center gap-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCaseId(proj.id);
                         setActiveProject(proj);
                       }}
-                      className="flex-1 py-2 px-3 bg-[#043D38] text-white hover:bg-[#022D29] text-xs font-mono font-bold uppercase tracking-wider rounded-lg flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer"
+                      className="flex-1 py-2 px-3 bg-[#043D38] text-white hover:bg-[#022D29] text-xs font-mono font-bold uppercase tracking-wider rounded-lg flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer min-w-0"
+                      title={`Open statutory damage report for ${proj.name}`}
                     >
-                      <IconFileReport className="w-3.5 h-3.5 text-[#38BDF8]" />
-                      <span>View Statutory Report</span>
+                      <IconFileReport className="w-3.5 h-3.5 text-[#38BDF8] shrink-0" />
+                      <span className="truncate">View Statutory Report</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setProjectToDelete({ id: proj.id, name: proj.name });
+                      }}
+                      className="py-2 px-2.5 bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] hover:bg-[#FEE2E2] hover:border-[#FCA5A5] text-xs font-mono font-bold uppercase tracking-wider rounded-lg flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer shrink-0"
+                      title={`Delete statutory report for ${proj.name}`}
+                    >
+                      <IconTrash className="w-3.5 h-3.5 text-[#DC2626]" />
+                      <span>Delete Report</span>
                     </button>
 
                     <button
@@ -839,7 +928,7 @@ export const ReportsPage: React.FC = () => {
                         e.stopPropagation();
                         handleDownloadDossier(proj, featuresByProjectId[proj.id] || []);
                       }}
-                      className="p-2 bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs transition-colors shadow-xs cursor-pointer"
+                      className="p-2 bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs transition-colors shadow-xs cursor-pointer shrink-0"
                       title="Download Offline HTML Dossier"
                     >
                       <IconDownload className="w-3.5 h-3.5 text-[#0284C7]" />
@@ -850,7 +939,7 @@ export const ReportsPage: React.FC = () => {
                         e.stopPropagation();
                         handleExportGeoJSON(proj, featuresByProjectId[proj.id] || []);
                       }}
-                      className="p-2 bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs transition-colors shadow-xs cursor-pointer"
+                      className="p-2 bg-white text-[#0F172A] border border-[#CBD5E1] rounded-lg hover:bg-[#F1F5F9] text-xs transition-colors shadow-xs cursor-pointer shrink-0"
                       title="Export GeoJSON Features"
                     >
                       <IconCode className="w-3.5 h-3.5 text-[#047857]" />
@@ -861,6 +950,7 @@ export const ReportsPage: React.FC = () => {
             })}
           </div>
         )}
+        {renderDeleteModal()}
       </div>
     );
   }
@@ -955,6 +1045,15 @@ export const ReportsPage: React.FC = () => {
           >
             <IconPrinter className="w-4 h-4" />
             <span>Save as PDF / Print</span>
+          </button>
+
+          <button
+            onClick={() => setProjectToDelete({ id: activeCase.id, name: activeCase.name })}
+            className="flex items-center space-x-1.5 px-3 py-2 bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] rounded-lg hover:bg-[#FEE2E2] hover:border-[#FCA5A5] text-xs font-mono font-bold uppercase tracking-wider transition-colors shadow-xs cursor-pointer"
+            title="Delete this statutory damage assessment report"
+          >
+            <IconTrash className="w-4 h-4 text-[#DC2626]" />
+            <span>Delete Report</span>
           </button>
         </div>
       </div>
@@ -1344,8 +1443,18 @@ export const ReportsPage: React.FC = () => {
             <IconDownload className="w-4 h-4 text-[#38BDF8]" />
             <span>Download Official Dossier</span>
           </button>
+
+          <button
+            onClick={() => setProjectToDelete({ id: activeCase.id, name: activeCase.name })}
+            className="flex items-center space-x-1.5 px-3.5 py-2 bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA] hover:bg-[#FEE2E2] hover:border-[#FCA5A5] rounded-lg text-xs font-mono font-bold uppercase tracking-wider transition-colors shadow-xs cursor-pointer"
+            title="Delete this statutory report"
+          >
+            <IconTrash className="w-4 h-4 text-[#DC2626]" />
+            <span>Delete Report</span>
+          </button>
         </div>
       </div>
+      {renderDeleteModal()}
     </div>
   );
 };
