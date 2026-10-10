@@ -100,10 +100,10 @@
 @media print {
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm 12mm 12mm;
+    margin: 8mm 10mm 8mm 10mm;
   }
 
-  /* Force hide all web application navigation and chrome */
+  /* Force hide all web application navigation, headers, and UI controls */
   aside,
   header,
   nav,
@@ -136,20 +136,27 @@
     print-color-adjust: exact !important;
   }
 
-  /* Certificate root document formatting */
+  /* Certificate root document formatting in print */
   .certificate-document {
-    border: 1.5px solid #0F2D38 !important;
+    border: none !important;
     box-shadow: none !important;
-    border-radius: 8px !important;
-    padding: 20px !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
     margin: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
     background: #FFFFFF !important;
-    page-break-after: avoid;
   }
 
-  /* Prevent awkward page cutoffs */
+  /* Force clean page break */
+  .print-page-break {
+    break-before: page !important;
+    page-break-before: always !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+  }
+
+  /* Prevent awkward splits inside individual cards or rows */
   .avoid-break {
     break-inside: avoid !important;
     page-break-inside: avoid !important;

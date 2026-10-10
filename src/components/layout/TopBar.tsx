@@ -38,7 +38,7 @@ export const TopBar: React.FC = () => {
           <span>Projects</span>
           <IconChevronRight className="w-3.5 h-3.5 text-[#94A3B8]" />
           <span className="font-semibold text-[#0284C7] max-w-[130px] truncate" title={activeProject?.name}>
-            {activeProject?.name || 'Godavari Basin'}
+            {activeProject?.name || 'All Surveys'}
           </span>
         </div>
 

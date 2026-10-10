@@ -12,5 +12,5 @@ if __name__ == "__main__":
     print("Powered by Google Gemini Vision API")
     print(f"Listening on port: {port}")
     print("==========================================================")
-    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("backend.app.main:app", host="0.0.0.0", port=port, reload=True)
 

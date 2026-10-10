@@ -28,12 +28,17 @@ export const App: React.FC = () => {
             setProjects(projs);
             setActiveProject(projs[0]);
             const feats = await getAnalysisFeatures(projs[0].id);
-            if (feats && feats.length > 0) {
-              setFeatures(feats);
-            }
+            setFeatures(feats || []);
+          } else {
+            setProjects([]);
+            setActiveProject(null);
+            setFeatures([]);
           }
         } catch (err) {
           console.warn('Backend sync warning:', err);
+          setProjects([]);
+          setActiveProject(null);
+          setFeatures([]);
         }
       }
     });

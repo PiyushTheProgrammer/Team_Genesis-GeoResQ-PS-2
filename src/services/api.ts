@@ -35,10 +35,10 @@ export const checkBackendHealth = async (): Promise<boolean> => {
 export const fetchProjects = async (): Promise<Project[]> => {
   try {
     const res = await apiClient.get('/api/v1/projects');
-    return res.data;
+    return Array.isArray(res.data) ? res.data : [];
   } catch {
-    console.warn('[API Client] Backend unavailable. Falling back to demo projects data.');
-    return DEMO_PROJECTS;
+    console.warn('[API Client] Backend unavailable or empty.');
+    return [];
   }
 };
 
@@ -54,10 +54,10 @@ export const createProject = async (data: {
     const newProj: Project = {
       id: `proj-custom-${Date.now()}`,
       name: data.name,
-      location: data.location || 'Nashik, Maharashtra',
+      location: data.location || 'Survey Location',
       description: data.description,
       createdAt: new Date().toISOString(),
-      status: 'queued',
+      status: 'completed',
       imagery: {
         id: `img-${Date.now()}`,
         name: `${data.name.replace(/\s+/g, '_')}_Orthomosaic.tif`,
@@ -73,15 +73,27 @@ export const createProject = async (data: {
       featuresCount: 0,
       totalAffectedAreaSqKm: 0,
       severityDistribution: { high: 0, medium: 0, low: 0, unclassified: 0, total: 0 },
-      modelUsed: 'GeoResQ-Vision-v2.4',
+      modelUsed: 'genresq_unet_best.pth (PyTorch Custom UNet)',
     };
     return newProj;
+  }
+};
+
+export const deleteProject = async (projectId: string): Promise<boolean> => {
+  try {
+    await apiClient.delete(`/api/v1/projects/${projectId}`);
+    return true;
+  } catch (err) {
+    console.warn('[API Client] Delete project failed:', err);
+    return false;
   }
 };
 
 export interface UploadImageryResponse {
   success: boolean;
   imageId: string;
+  projectId?: string;
+  project?: Project;
   filename?: string;
   modelUsed?: string;
   detectedFeaturesCount?: number;
@@ -196,11 +208,22 @@ export const getJobStatus = async (jobId: string): Promise<AnalysisJob> => {
 
 export const getAnalysisFeatures = async (analysisId: string): Promise<DetectionFeature[]> => {
   try {
-    const res = await apiClient.get(`/api/v1/analyses/${analysisId}/features`);
-    return res.data;
+    const res = await apiClient.get(`/api/v1/projects/${analysisId}/features`);
+    if (Array.isArray(res.data)) return res.data;
   } catch {
-    return DEMO_FEATURES;
+    // fallback to analyses endpoint
   }
+  try {
+    const res2 = await apiClient.get(`/api/v1/analyses/${analysisId}/features`);
+    if (Array.isArray(res2.data)) return res2.data;
+  } catch {
+    // ignore
+  }
+  return [];
+};
+
+export const getProjectFeatures = async (projectId: string): Promise<DetectionFeature[]> => {
+  return getAnalysisFeatures(projectId);
 };
 
 export const getAnalysisLayers = async (analysisId: string): Promise<LayerConfiguration[]> => {

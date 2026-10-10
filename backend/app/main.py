@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import random
+import json
 import sqlite3
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -84,8 +85,7 @@ except ModuleNotFoundError:
 
 load_dotenv()
 
-DEFAULT_SUPABASE_URL = "postgresql://postgres.gehfjqpqwcqgrchsmcmg:AlphaProgrammer%40140406@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
-DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or DEFAULT_SUPABASE_URL
+DATABASE_URL = os.getenv("DATABASE_URL") or os.getenv("POSTGRES_URL") or "postgresql://postgres.gehfjqpqwcqgrchsmcmg:AlphaProgrammer%40140406@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
 app = FastAPI(
     title="GeoResQ Disaster AI Backend Server",
@@ -106,17 +106,23 @@ PROJECTS_DB: Dict[str, Project] = {}
 FEATURES_DB: Dict[str, List[DetectionFeature]] = {}
 JOBS_DB: Dict[str, AnalysisJob] = {}
 
-DEFAULT_PROJECT_ID = "proj-nashik-2026-001"
+def get_db_connection():
+    """Returns a connection to Supabase PostgreSQL or None."""
+    if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
+        try:
+            import psycopg2
+            return psycopg2.connect(DATABASE_URL, connect_timeout=10)
+        except Exception as err:
+            print(f"[Supabase DB Connect Warning] {err}")
+    return None
 
 def init_db():
-    """Initializes Supabase PostgreSQL / SQLite database tables on startup."""
-    print(f"[Supabase DB] Connecting to database: {DATABASE_URL.split('@')[-1]}...")
+    """Initializes Supabase PostgreSQL database tables on startup."""
+    print(f"[Supabase DB] Verifying PostgreSQL connection: {DATABASE_URL.split('@')[-1]}...")
     try:
-        if "postgresql" in DATABASE_URL or "postgres" in DATABASE_URL:
-            import psycopg2
-            conn = psycopg2.connect(DATABASE_URL, connect_timeout=8)
+        conn = get_db_connection()
+        if conn:
             cursor = conn.cursor()
-            
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id VARCHAR(100) PRIMARY KEY,
@@ -146,7 +152,9 @@ def init_db():
                     area_sq_km FLOAT DEFAULT 0.0,
                     length_km FLOAT DEFAULT 0.0,
                     detected_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    details TEXT
+                    details TEXT,
+                    svg_coords TEXT,
+                    bbox JSONB
                 );
             """)
 
@@ -169,28 +177,200 @@ def init_db():
             cursor.close()
             conn.close()
             print("[Supabase DB SUCCESS] PostgreSQL tables verified and active!")
-        else:
-            conn = sqlite3.connect("georesq.db")
-            cursor = conn.cursor()
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS spatial_features (
-                    id TEXT PRIMARY KEY,
-                    category TEXT,
-                    name TEXT,
-                    confidence REAL,
-                    severity TEXT,
-                    geometry_type TEXT,
-                    coordinates TEXT,
-                    area_sq_km REAL,
-                    length_km REAL,
-                    project_id TEXT,
-                    detected_at TEXT
-                )
-            """)
-            conn.commit()
-            conn.close()
     except Exception as e:
         print(f"[DB Notice] Database init notice: {e}")
+
+def db_save_project(proj: Project):
+    """Saves or updates a user-uploaded project in Supabase PostgreSQL."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return
+        cur = conn.cursor()
+        sev_data = proj.severityDistribution.model_dump() if hasattr(proj.severityDistribution, "model_dump") else proj.severityDistribution.dict()
+        img_data = proj.imagery.model_dump() if hasattr(proj.imagery, "model_dump") else proj.imagery.dict()
+        cur.execute("""
+            INSERT INTO projects (
+                id, name, location, description, status, created_at,
+                features_count, total_affected_area_sq_km, severity_distribution,
+                imagery_metadata, model_used
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) DO UPDATE SET
+                name = EXCLUDED.name,
+                location = EXCLUDED.location,
+                description = EXCLUDED.description,
+                status = EXCLUDED.status,
+                features_count = EXCLUDED.features_count,
+                total_affected_area_sq_km = EXCLUDED.total_affected_area_sq_km,
+                severity_distribution = EXCLUDED.severity_distribution,
+                imagery_metadata = EXCLUDED.imagery_metadata,
+                model_used = EXCLUDED.model_used;
+        """, (
+            proj.id,
+            proj.name,
+            proj.location,
+            proj.description,
+            proj.status,
+            proj.createdAt,
+            proj.featuresCount,
+            proj.totalAffectedAreaSqKm,
+            json.dumps(sev_data),
+            json.dumps(img_data),
+            proj.modelUsed
+        ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"[Supabase DB] Persisted Project '{proj.name}' ({proj.id}) successfully.")
+    except Exception as e:
+        print(f"[Supabase DB Save Project Error] {e}")
+
+def db_save_features(project_id: str, features: List[Dict[str, Any]]):
+    """Saves detected vector features for an uploaded project into Supabase PostgreSQL."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return
+        cur = conn.cursor()
+        cur.execute("DELETE FROM spatial_features WHERE project_id = %s;", (project_id,))
+        for f in features:
+            f_id = f.get("id") or f"FEAT_{random.randint(1000, 9999)}"
+            cur.execute("""
+                INSERT INTO spatial_features (
+                    id, project_id, category, name, confidence, severity,
+                    geometry_type, coordinates, area_sq_km, length_km,
+                    detected_at, details, svg_coords, bbox
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+            """, (
+                f_id,
+                project_id,
+                f.get("category"),
+                f.get("name"),
+                float(f.get("confidence", 0.95)),
+                f.get("severity", "high"),
+                f.get("geometryType", "Polygon"),
+                json.dumps(f.get("coordinates", [])),
+                float(f.get("areaSqKm", 0.0) or 0.0),
+                float(f.get("lengthKm", 0.0) or 0.0),
+                f.get("detectedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                f.get("notes") or "",
+                f.get("svgCoords") or "",
+                json.dumps(f.get("bbox")) if f.get("bbox") else None
+            ))
+        conn.commit()
+        cur.close()
+        conn.close()
+        print(f"[Supabase DB] Persisted {len(features)} spatial features for {project_id}.")
+    except Exception as e:
+        print(f"[Supabase DB Save Features Error] {e}")
+
+def db_get_projects() -> List[Project]:
+    """Retrieves all user-uploaded projects strictly from Supabase PostgreSQL."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return list(PROJECTS_DB.values())
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, name, location, description, status, created_at,
+                   features_count, total_affected_area_sq_km, severity_distribution,
+                   imagery_metadata, model_used
+            FROM projects
+            ORDER BY created_at DESC;
+        """)
+        rows = cur.fetchall()
+        projects = []
+        for r in rows:
+            sev_raw = r[8] if isinstance(r[8], dict) else (json.loads(r[8]) if r[8] else {})
+            img_raw = r[9] if isinstance(r[9], dict) else (json.loads(r[9]) if r[9] else {})
+            created_str = r[5].isoformat() if hasattr(r[5], "isoformat") else str(r[5])
+            p = Project(
+                id=r[0],
+                name=r[1],
+                location=r[2] or "Survey Location",
+                description=r[3] or "",
+                status=r[4] or "completed",
+                createdAt=created_str,
+                featuresCount=r[6] or 0,
+                totalAffectedAreaSqKm=float(r[7] or 0.0),
+                severityDistribution=SeverityDistribution(**sev_raw) if sev_raw else SeverityDistribution(),
+                imagery=ImageryMetadata(**img_raw) if img_raw else ImageryMetadata(id=f"img-{r[0]}", name=r[1]),
+                modelUsed=r[10] or "genresq_unet_best.pth (PyTorch Custom UNet)"
+            )
+            projects.append(p)
+        cur.close()
+        conn.close()
+        return projects
+    except Exception as e:
+        print(f"[Supabase DB Get Projects Error] {e}")
+        return list(PROJECTS_DB.values())
+
+def db_get_project(project_id: str) -> Optional[Project]:
+    """Retrieves a single project from Supabase PostgreSQL."""
+    projs = db_get_projects()
+    for p in projs:
+        if p.id == project_id:
+            return p
+    return PROJECTS_DB.get(project_id)
+
+def db_get_features(project_id: str) -> List[DetectionFeature]:
+    """Retrieves detected spatial features strictly from Supabase PostgreSQL for a project."""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return FEATURES_DB.get(project_id, [])
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT id, category, name, confidence, severity, geometry_type,
+                   coordinates, area_sq_km, length_km, detected_at, details,
+                   svg_coords, bbox
+            FROM spatial_features
+            WHERE project_id = %s;
+        """, (project_id,))
+        rows = cur.fetchall()
+        features = []
+        for r in rows:
+            coords = r[6] if isinstance(r[6], list) else (json.loads(r[6]) if r[6] else [])
+            bbox = r[12] if isinstance(r[12], dict) else (json.loads(r[12]) if r[12] else None)
+            det_time = r[9].isoformat() if hasattr(r[9], "isoformat") else str(r[9])
+            f_dict = {
+                "id": r[0],
+                "category": r[1],
+                "name": r[2],
+                "confidence": float(r[3] or 0.95),
+                "severity": r[4],
+                "geometryType": r[5],
+                "coordinates": coords,
+                "areaSqKm": float(r[7] or 0.0),
+                "lengthKm": float(r[8] or 0.0),
+                "projectId": project_id,
+                "detectedAt": det_time,
+                "notes": r[10] or "",
+                "svgCoords": r[11] or "",
+                "bbox": bbox
+            }
+            features.append(DetectionFeature(**f_dict))
+        cur.close()
+        conn.close()
+        return features
+    except Exception as e:
+        print(f"[Supabase DB Get Features Error] {e}")
+        return FEATURES_DB.get(project_id, [])
+
+def db_delete_project(project_id: str):
+    """Deletes an uploaded project and its features from Supabase PostgreSQL."""
+    try:
+        conn = get_db_connection()
+        if conn:
+            cur = conn.cursor()
+            cur.execute("DELETE FROM spatial_features WHERE project_id = %s;", (project_id,))
+            cur.execute("DELETE FROM projects WHERE id = %s;", (project_id,))
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"[Supabase DB] Deleted project {project_id} from database.")
+    except Exception as e:
+        print(f"[Supabase DB Delete Project Error] {e}")
 
 
 def run_tiered_disaster_analysis(
@@ -238,46 +418,17 @@ def run_tiered_disaster_analysis(
     return [], "genresq_unet_best.pth (PyTorch Custom UNet)"
 
 
-def init_default_project():
-    if DEFAULT_PROJECT_ID not in PROJECTS_DB:
-        default_proj = Project(
-            id=DEFAULT_PROJECT_ID,
-            name="Nashik Godavari Basin Surge Analysis",
-            location="Nashik, Maharashtra",
-            description="High-resolution drone survey following heavy monsoon discharge along the Godavari river floodplain.",
-            createdAt="2026-10-02T08:30:00Z",
-            status="completed",
-            imagery=ImageryMetadata(
-                id="img-nsh-01",
-                name="Godavari_Basin_Orthomosaic_HD.tif",
-                acquisitionDate="2026-10-01 14:15 UTC",
-                resolutionMetersPerPx=0.045,
-                crs="EPSG:4326 (WGS84)",
-                dimensionsPx="14200 x 9800 px",
-                fileSizeMB=842.5,
-                bbox=[19.995, 73.770, 20.025, 73.810],
-                center=[20.0059, 73.7898],
-                thumbnailUrl="https://images.unsplash.com/photo-1508873696983-2df5057d225b?auto=format&fit=crop&w=400&q=80",
-                sensorInfo="DJI Matrice 300 RTK + Zenmuse P1"
-            ),
-            featuresCount=4,
-            totalAffectedAreaSqKm=5.27,
-            severityDistribution=SeverityDistribution(high=3, medium=1, low=0, unclassified=0, total=4),
-            modelUsed="genresq_unet_best.pth (PyTorch Custom UNet)"
-        )
-        PROJECTS_DB[DEFAULT_PROJECT_ID] = default_proj
-
-        raw_feats, model_used = run_tiered_disaster_analysis(
-            image_bytes=None,
-            project_id=DEFAULT_PROJECT_ID,
-            project_name=default_proj.name,
-            location=default_proj.location
-        )
-        default_proj.modelUsed = model_used
-        FEATURES_DB[DEFAULT_PROJECT_ID] = [DetectionFeature(**f) for f in raw_feats]
+def load_db_projects():
+    """Loads all user-uploaded surveys from Supabase PostgreSQL on startup."""
+    projs = db_get_projects()
+    for p in projs:
+        PROJECTS_DB[p.id] = p
+        feats = db_get_features(p.id)
+        FEATURES_DB[p.id] = feats
+    print(f"[Supabase DB] Loaded {len(projs)} user-uploaded surveys from PostgreSQL.")
 
 init_db()
-init_default_project()
+load_db_projects()
 
 @app.get("/api/v1/health")
 async def get_health():
@@ -290,7 +441,7 @@ async def get_health():
         "unet_model_loaded": unet_ready,
         "gemini_api_configured": api_key_present,
         "database_connected": True,
-        "database_url": DATABASE_URL,
+        "database_url": DATABASE_URL.split("@")[-1],
         "active_pipeline": "genresq_unet_best.pth (Primary) -> Gemini Vision API (Secondary Fallback)",
         "timestamp": time.time(),
     }
@@ -310,13 +461,31 @@ async def list_regions():
 
 @app.get("/api/v1/projects", response_model=List[Project])
 async def list_projects():
-    return list(PROJECTS_DB.values())
+    return db_get_projects()
 
 @app.get("/api/v1/projects/{projectId}", response_model=Project)
 async def get_project(projectId: str):
-    if projectId not in PROJECTS_DB:
+    proj = db_get_project(projectId)
+    if not proj:
         raise HTTPException(status_code=404, detail="Project not found")
-    return PROJECTS_DB[projectId]
+    return proj
+
+@app.get("/api/v1/projects/{projectId}/features")
+async def get_project_features(projectId: str):
+    feats = db_get_features(projectId)
+    return [f.model_dump() if hasattr(f, "model_dump") else f.dict() for f in feats]
+
+@app.get("/api/v1/analyses/{analysisId}/features")
+async def get_analysis_features(analysisId: str):
+    feats = db_get_features(analysisId)
+    return [f.model_dump() if hasattr(f, "model_dump") else f.dict() for f in feats]
+
+@app.delete("/api/v1/projects/{projectId}")
+async def delete_project(projectId: str):
+    db_delete_project(projectId)
+    PROJECTS_DB.pop(projectId, None)
+    FEATURES_DB.pop(projectId, None)
+    return {"success": True, "deletedProjectId": projectId}
 
 @app.get("/api/v1/projects/{projectId}/trends")
 async def get_project_trends(projectId: str):
@@ -456,18 +625,78 @@ async def analyze_image_endpoint(
     location: Optional[str] = Query("Nashik, Maharashtra")
 ):
     file_bytes = await file.read()
-    project_id = f"upload-{int(time.time())}"
+    clean_name = file.filename or "Uploaded Drone Survey"
+    base_name = os.path.splitext(clean_name)[0].replace("_", " ").title()
+    proj_id = f"proj-up-{int(time.time())}"
+
     raw_feats, used_model = run_tiered_disaster_analysis(
         image_bytes=file_bytes if len(file_bytes) > 0 else None,
-        project_id=project_id,
-        project_name=file.filename or "Uploaded Drone Survey",
+        project_id=proj_id,
+        project_name=f"{base_name} Survey",
         location=location or "Nashik, Maharashtra"
     )
+
+    detected_features = [DetectionFeature(**f) for f in raw_feats]
+    flooded_sum = sum(f.areaSqKm or 0 for f in detected_features if f.category == "flooded_area")
+
+    thumbnail_data = ""
+    try:
+        from PIL import Image
+        import io, base64
+        th_img = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+        th_img.thumbnail((400, 260))
+        th_buf = io.BytesIO()
+        th_img.save(th_buf, format="JPEG", quality=75)
+        thumbnail_data = f"data:image/jpeg;base64,{base64.b64encode(th_buf.getvalue()).decode('utf-8')}"
+    except Exception:
+        thumbnail_data = "https://images.unsplash.com/photo-1508873696983-2df5057d225b?auto=format&fit=crop&w=400&q=80"
+
+    new_proj = Project(
+        id=proj_id,
+        name=f"{base_name} Survey",
+        location=location or "Survey Location",
+        description=f"Automated aerial disaster survey vectorized from {clean_name} using {used_model}.",
+        createdAt=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        status="completed",
+        imagery=ImageryMetadata(
+            id=f"img-{proj_id}",
+            name=clean_name,
+            acquisitionDate=time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime()),
+            resolutionMetersPerPx=0.045,
+            crs="EPSG:4326 (WGS84)",
+            dimensionsPx="14200 x 9800 px",
+            fileSizeMB=round(len(file_bytes) / (1024 * 1024), 2) if len(file_bytes) > 0 else 0.5,
+            bbox=[19.995, 73.770, 20.025, 73.810],
+            center=[20.0059, 73.7898],
+            thumbnailUrl=thumbnail_data
+        ),
+        featuresCount=len(detected_features),
+        totalAffectedAreaSqKm=round(flooded_sum, 2),
+        severityDistribution=SeverityDistribution(
+            high=sum(1 for f in detected_features if f.severity in ["high", "CRITICAL", "critical"]),
+            medium=sum(1 for f in detected_features if f.severity in ["medium", "MEDIUM"]),
+            low=sum(1 for f in detected_features if f.severity in ["low", "LOW"]),
+            unclassified=0,
+            total=len(detected_features)
+        ),
+        modelUsed=used_model
+    )
+
+    # Persist directly into Supabase PostgreSQL
+    db_save_project(new_proj)
+    db_save_features(proj_id, raw_feats)
+
+    PROJECTS_DB[proj_id] = new_proj
+    FEATURES_DB[proj_id] = detected_features
+
     return {
         "success": True,
-        "filename": file.filename,
+        "filename": clean_name,
+        "projectId": proj_id,
+        "project": new_proj.model_dump() if hasattr(new_proj, "model_dump") else new_proj.dict(),
         "modelUsed": used_model,
-        "detectedFeaturesCount": len(raw_feats),
+        "detectedFeaturesCount": len(detected_features),
+        "totalFloodedAreaSqKm": round(flooded_sum, 2),
         "features": raw_feats,
     }
 

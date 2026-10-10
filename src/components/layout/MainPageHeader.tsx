@@ -116,28 +116,28 @@ export const MainPageHeader: React.FC<MainPageHeaderProps> = ({
         <div>
           <div className="text-[10px] text-[#64748B] uppercase font-semibold">SURVEY / CASE ID</div>
           <div className="font-extrabold text-[#0F172A] mt-0.5 truncate" title={activeProject?.id}>
-            {activeProject?.id || 'proj-nashik-2026-001'}
+            {activeProject?.id || 'No Active Survey'}
           </div>
         </div>
 
         <div>
           <div className="text-[10px] text-[#64748B] uppercase font-semibold">SURVEY REGION</div>
           <div className="font-bold text-[#0F172A] mt-0.5 truncate" title={geographicContext}>
-            {geographicContext}
+            {activeProject?.location || geographicContext}
           </div>
         </div>
 
         <div>
           <div className="text-[10px] text-[#64748B] uppercase font-semibold">TOTAL AFFECTED AREA</div>
           <div className="font-extrabold text-[#0284C7] mt-0.5">
-            {activeProject?.totalAffectedAreaSqKm || 5.27} sq km
+            {activeProject ? `${activeProject.totalAffectedAreaSqKm} sq km` : '0.00 sq km'}
           </div>
         </div>
 
         <div>
           <div className="text-[10px] text-[#64748B] uppercase font-semibold">DISASTER CATEGORY</div>
           <div className="font-bold text-[#0F172A] mt-0.5 truncate">
-            Monsoon Riverine Surge
+            {activeProject ? 'Aerial Flood / Damage Survey' : 'Standby'}
           </div>
         </div>
 

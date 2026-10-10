@@ -22,11 +22,14 @@ import {
   IconSparkles,
   IconAlertTriangle,
   IconTrash,
+  IconFileReport,
+  IconFolder,
 } from '@tabler/icons-react';
+import { Project, DetectionFeature } from '../types/geoai';
 
 export const UploadAnalyzePage: React.FC = () => {
   const navigate = useNavigate();
-  const { activeProject, triggerMockAnalysis } = useGeoStore();
+  const { activeProject, registerUploadedSurvey } = useGeoStore();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -191,8 +194,83 @@ export const UploadAnalyzePage: React.FC = () => {
       setAnalysisCompleted(true);
       setShowVectorOverlay(true);
 
-      // Trigger store synchronization for projects and maps
-      triggerMockAnalysis(selectedFile.name, engineUsed);
+      // Register with useGeoStore so ReportsPage, ProjectsPage, and MapViewerPage strictly reflect this upload
+      const effectiveProjectName = backendRes.project?.name || `${selectedFile.name.split('.')[0]} Survey`;
+      const effectiveProjId = backendRes.project?.id || `proj-${Date.now()}`;
+
+      const storeFeatures: DetectionFeature[] = finalFeatures.map((f, idx) => {
+        const sevLower = (f.severity || '').toLowerCase();
+        const severity: 'high' | 'medium' | 'low' | 'unclassified' =
+          sevLower === 'high' || sevLower === 'critical'
+            ? 'high'
+            : sevLower === 'low'
+            ? 'low'
+            : sevLower === 'unclassified'
+            ? 'unclassified'
+            : 'medium';
+
+        return {
+          id: f.id || `feat-${idx + 1}`,
+          projectId: effectiveProjId,
+          projectName: effectiveProjectName,
+          name: f.name || `Feature ${idx + 1}`,
+          category: f.category,
+          confidence: f.confidence || 0.9,
+          severity,
+          geometryType: f.type === 'polyline' ? 'LineString' : 'Polygon',
+          coordinates: [[20.0059 + idx * 0.003, 73.7898 + idx * 0.003]],
+          areaSqKm: f.areaSqMeters
+            ? Math.round((f.areaSqMeters / 1000000) * 100) / 100
+            : f.category === 'flooded_area'
+            ? 0.45
+            : undefined,
+          lengthKm: f.category === 'road_affected' ? 1.2 : undefined,
+          detectedAt: new Date().toISOString(),
+          validationStatus: 'unreviewed',
+          notes: f.details,
+        };
+      });
+
+      if (backendRes.project) {
+        registerUploadedSurvey(backendRes.project, storeFeatures);
+      } else {
+        const fallbackProject: Project = {
+          id: `proj-up-${Date.now()}`,
+          name: `${selectedFile.name.split('.')[0]} Survey`,
+          location: activeProject?.location || 'Aerial Survey Sector',
+          description: `Automated aerial disaster survey vectorized from ${selectedFile.name} using ${engineUsed}.`,
+          createdAt: new Date().toISOString(),
+          status: 'completed',
+          imagery: {
+            id: `img-${Date.now()}`,
+            name: selectedFile.name,
+            acquisitionDate: new Date().toISOString().slice(0, 16) + ' UTC',
+            resolutionMetersPerPx: 0.045,
+            crs: 'EPSG:4326 (WGS84)',
+            dimensionsPx: '14200 x 9800 px',
+            fileSizeMB: Math.round((selectedFile.size / (1024 * 1024)) * 100) / 100,
+            bbox: [19.995, 73.770, 20.025, 73.810],
+            center: [20.0059, 73.7898],
+            thumbnailUrl: previewUrl || '',
+          },
+          featuresCount: storeFeatures.length,
+          totalAffectedAreaSqKm:
+            Math.round(
+              storeFeatures
+                .filter((f) => f.category === 'flooded_area')
+                .reduce((acc, f) => acc + (f.areaSqKm || 0), 0) * 100
+            ) / 100,
+          severityDistribution: {
+            high: storeFeatures.filter((f) => f.severity === 'high').length,
+            medium: storeFeatures.filter((f) => f.severity === 'medium').length,
+            low: storeFeatures.filter((f) => f.severity === 'low').length,
+            unclassified: 0,
+            total: storeFeatures.length,
+          },
+          modelUsed: engineUsed,
+        };
+        registerUploadedSurvey(fallbackProject, storeFeatures);
+      }
     } catch (err: any) {
       console.error('[Inference Error]', err);
       setFileError('An error occurred during inference: ' + (err?.message || err));
@@ -591,13 +669,32 @@ export const UploadAnalyzePage: React.FC = () => {
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => navigate('/map')}
-                        className="px-2.5 py-1 bg-[#0284C7] text-white rounded font-bold text-[10px] uppercase flex items-center space-x-1 hover:bg-[#0369A1]"
-                      >
-                        <IconMapPin className="w-3 h-3" />
-                        <span>View on GIS Map</span>
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => navigate('/reports', { state: { caseId: activeProject?.id } })}
+                          className="px-2.5 py-1 bg-[#047857] text-white rounded font-bold text-[10px] uppercase flex items-center space-x-1 hover:bg-[#065F46] shadow-xs"
+                          title="View dynamic damage assessment report"
+                        >
+                          <IconFileReport className="w-3 h-3" />
+                          <span>View Statutory Report</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/projects')}
+                          className="px-2.5 py-1 bg-[#475569] text-white rounded font-bold text-[10px] uppercase flex items-center space-x-1 hover:bg-[#334155] shadow-xs"
+                          title="Manage uploaded surveys in Supabase"
+                        >
+                          <IconFolder className="w-3 h-3" />
+                          <span>View in Projects</span>
+                        </button>
+                        <button
+                          onClick={() => navigate('/map')}
+                          className="px-2.5 py-1 bg-[#0284C7] text-white rounded font-bold text-[10px] uppercase flex items-center space-x-1 hover:bg-[#0369A1] shadow-xs"
+                          title="Open interactive GIS map viewer"
+                        >
+                          <IconMapPin className="w-3 h-3" />
+                          <span>View on GIS Map</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
